@@ -1,0 +1,78 @@
+# ─────────────────────────────────────────────────────────────────────────
+# Local development stack: Postgres + API.
+#
+#   docker compose up -d          start
+#   docker compose exec api npm run db:migrate -w @cch/api
+#   docker compose exec api npm run db:seed    -w @cch/api
+#
+# The web app is NOT here on purpose. Next.js's dev server with hot reload is a
+# far better experience run natively (`npm run dev:web`), and containerising it
+# buys nothing but a slower feedback loop.
+# ─────────────────────────────────────────────────────────────────────────
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: cch-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: campus_career_hub
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      # `pg_isready` returns success the moment the socket accepts connections —
+      # which is BEFORE the database is actually ready to serve queries. The
+      # `-d` flag makes it check the specific database, which is the state the
+      # API actually needs.
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d campus_career_hub']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cch-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        # `service_healthy`, not `service_started`. The API refuses to boot if it
+        # cannot reach the database, so starting it against a Postgres that is
+        # still initialising would just crash-loop it.
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      LOG_LEVEL: info
+
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/campus_career_hub
+
+      # Compose reads these from your .env. The API's Zod schema refuses to start
+      # if they are missing or still hold the example values, so a misconfigured
+      # container fails loudly at boot rather than silently at the first login.
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET in .env}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET in .env}
+      JWT_ACCESS_TTL: 15m
+      JWT_REFRESH_TTL: 7d
+      BCRYPT_ROUNDS: 12
+
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@jainuniversity.ac.in}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?set SEED_ADMIN_PASSWORD in .env}
+      SEED_ADMIN_NAME: ${SEED_ADMIN_NAME:-Placement Office}
+    ports:
+      - '4000:4000'
+
+volumes:
+  postgres_data:
