@@ -52,6 +52,25 @@ const envSchema = z
     GOOGLE_CLIENT_ID: z.string().optional(),
 
     /**
+     * Emails that become ADMIN on Google sign-in — the bootstrap for a
+     * Google-only system where everyone else auto-creates as a student.
+     *
+     * Comma-separated, lower-cased. An email here is promoted to admin the next
+     * time it signs in (whether the account is new or already exists), so adding
+     * a placement officer's college Google address here and having them sign in
+     * is all it takes to grant admin. Everyone not listed is a student.
+     */
+    ADMIN_EMAILS: z
+      .string()
+      .default('')
+      .transform((v) =>
+        v
+          .split(',')
+          .map((s) => s.trim().toLowerCase())
+          .filter(Boolean),
+      ),
+
+    /**
      * The admin must ALSO hold a college email.
      *
      * `loginSchema` enforces the @jainuniversity.ac.in domain for every sign-in,

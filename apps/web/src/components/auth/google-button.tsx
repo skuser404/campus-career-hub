@@ -82,7 +82,7 @@ export function GoogleButton() {
           type: 'standard',
           theme: 'outline',
           size: 'large',
-          text: 'signin_with',
+          text: 'continue_with',
           shape: 'pill',
           logo_alignment: 'center',
           width: 320,
@@ -101,25 +101,21 @@ export function GoogleButton() {
     };
   }, []);
 
-  // No Client ID → render nothing, so the page is cleanly password-only.
-  if (!CLIENT_ID) return null;
+  // No Client ID configured. Since there is no password fallback any more, say so
+  // plainly rather than showing a blank space where a button should be.
+  if (!CLIENT_ID) {
+    return (
+      <div className="rounded-lg border border-dashed border-border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
+        Google Sign-In is being set up. Please check back shortly.
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-center">
-        {/* Google draws its button in here. The min-height reserves the space so
-            the form does not jump when the button finishes loading. */}
-        <div ref={containerRef} className="min-h-[44px]" aria-busy={!ready} />
-      </div>
-
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-border" />
-        </div>
-        <div className="relative flex justify-center text-xs">
-          <span className="bg-background px-2 text-muted-foreground">or sign in with email</span>
-        </div>
-      </div>
+    <div className="flex justify-center">
+      {/* Google draws its button in here. The min-height reserves the space so
+          the layout does not jump when the button finishes loading. */}
+      <div ref={containerRef} className="min-h-11" aria-busy={!ready} />
     </div>
   );
 }

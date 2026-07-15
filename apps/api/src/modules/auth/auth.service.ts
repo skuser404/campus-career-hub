@@ -7,6 +7,7 @@ import {
   type PublicUser,
 } from '@cch/shared';
 import { and, eq, gt, isNull, lt, ne, or } from 'drizzle-orm';
+import { env } from '../../config/env';
 import { db } from '../../db/client';
 import { departments, refreshTokens, users } from '../../db/schema';
 import { forbidden, passwordChangeRequired, unauthorized } from '../../lib/errors';
@@ -243,6 +244,10 @@ export async function loginWithGoogle(
     );
   }
 
+  // The admin allowlist — the bootstrap for a Google-only system. A listed email
+  // is an admin; everyone else is a student.
+  const shouldBeAdmin = env.ADMIN_EMAILS.includes(identity.email);
+
   const existing = await findByEmail(identity.email);
 
   if (existing) {
@@ -250,22 +255,24 @@ export async function loginWithGoogle(
       throw forbidden('Your account has been disabled. Contact the placement office.');
     }
 
-    // Refresh the profile from Google (a student may have changed their photo or
-    // display name) and record the visit. Role is left untouched — an admin stays
-    // an admin.
+    // Refresh the profile from Google (name/photo may have changed) and record
+    // the visit. Promote to admin if the email was added to the allowlist since
+    // last time; never auto-DEMOTE an existing admin who was granted by hand.
+    const nextRole = shouldBeAdmin ? 'admin' : existing.role;
+
     await db
       .update(users)
       .set({
         fullName: identity.name ?? existing.fullName,
         avatarUrl: identity.picture ?? existing.avatarUrl,
+        role: nextRole,
         lastLoginAt: new Date(),
-        // A returning account should never be stuck behind the forced-change gate.
         mustChangePassword: false,
         updatedAt: new Date(),
       })
       .where(eq(users.id, existing.id));
 
-    logger.info({ userId: existing.id }, 'Existing account signed in with Google');
+    logger.info({ userId: existing.id, role: nextRole }, 'Existing account signed in with Google');
 
     const refreshed = await findById(existing.id);
     return issueSession(refreshed as UserJoined, ctx);
@@ -273,16 +280,16 @@ export async function loginWithGoogle(
 
   // First time: mint the account from the verified Google identity.
   //
-  // There is no password to set — this account will only ever authenticate
-  // through Google — so the stored hash is unguessable random bytes purely to
-  // satisfy the NOT NULL column, and `mustChangePassword` is false.
+  // There is no password to set — this account only ever authenticates through
+  // Google — so the stored hash is unguessable random bytes purely to satisfy the
+  // NOT NULL column, and `mustChangePassword` is false.
   const [created] = await db
     .insert(users)
     .values({
       email: identity.email,
       passwordHash: await hashPassword(crypto.randomBytes(32).toString('base64url')),
       fullName: identity.name ?? identity.email.split('@')[0] ?? 'Student',
-      role: 'student',
+      role: shouldBeAdmin ? 'admin' : 'student',
       avatarUrl: identity.picture ?? null,
       mustChangePassword: false,
       lastLoginAt: new Date(),
@@ -291,7 +298,10 @@ export async function loginWithGoogle(
 
   if (!created) throw forbidden('Could not create your account. Please try again.');
 
-  logger.info({ userId: created.id, email: identity.email }, 'New student auto-created via Google');
+  logger.info(
+    { userId: created.id, email: identity.email, role: shouldBeAdmin ? 'admin' : 'student' },
+    'New account auto-created via Google',
+  );
 
   const row = await findById(created.id);
   return issueSession(row as UserJoined, ctx);
