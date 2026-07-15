@@ -1,6 +1,19 @@
 import type { ApiResponse, PaginationMeta } from '@cch/shared';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
+/**
+ * In production the browser talks to a SAME-ORIGIN path (`/api/v1`), which the
+ * Next.js rewrite in next.config proxies to the real API. That is what keeps the
+ * auth cookie first-party across the Vercel↔Render domain split — see the long
+ * note on `rewrites` for why a cross-domain cookie does not work.
+ *
+ * In development we hit the local API directly (localhost:4000): cross-port
+ * cookies on `localhost` are shared, so no proxy is needed and the request is
+ * one hop shorter.
+ */
+const API_URL =
+  process.env.NODE_ENV === 'production'
+    ? '/api/v1'
+    : (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1');
 
 export class ApiError extends Error {
   constructor(

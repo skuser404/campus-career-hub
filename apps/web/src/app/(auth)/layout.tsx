@@ -55,7 +55,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/15">
             <GraduationCap className="h-4 w-4" />
           </span>
-          Jain University · Placement Cell
+          Jain University
         </div>
 
         <div className="relative max-w-md">
