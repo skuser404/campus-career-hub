@@ -59,8 +59,27 @@ export interface AnalyticsOverview {
   applicationFunnel: StatusBreakdown[];
 }
 
+export interface DeadlineRow {
+  id: string;
+  slug: string;
+  role: string;
+  companyName: string;
+  deadline: string;
+}
+
 export interface AdminDashboardStats {
   totals: AnalyticsTotals;
+
+  /** Opportunities whose deadline has passed (now in the Closed view). */
+  closedCount: number;
+  /** Deadlines that fall today — the ones to chase students about. */
+  expiredTodayCount: number;
+  /** Students who reported a missing opportunity and are awaiting review. */
+  pendingReportsCount: number;
+
+  /** Live opportunities closing within the week, soonest first. */
+  upcomingDeadlines: DeadlineRow[];
+
   recentJobs: Array<{
     id: string;
     slug: string;

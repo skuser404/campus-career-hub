@@ -187,6 +187,16 @@ export const jobQuerySchema = paginationQuerySchema.extend({
     .enum(['true', 'false'])
     .optional()
     .transform((v) => v === 'true'),
+  /**
+   * `closed=true` shows only opportunities whose deadline has PASSED — the
+   * "Closed Opportunities" view. The default (unset) shows only LIVE ones
+   * (deadline in the future, or none). A past deadline moves an opportunity here
+   * automatically; nothing is deleted and the detail page still opens.
+   */
+  closed: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((v) => v === 'true'),
   sort: z.enum(JOB_SORT_OPTIONS).default('newest'),
 });
 export type JobQuery = z.infer<typeof jobQuerySchema>;

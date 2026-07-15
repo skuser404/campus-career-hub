@@ -95,6 +95,7 @@ function OpportunitiesContent() {
       tags: params.getAll('tags'),
       sort: asSort(params.get('sort')),
       closingSoon: params.get('closingSoon') === 'true',
+      closed: params.get('closed') === 'true',
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [search],
@@ -109,6 +110,7 @@ function OpportunitiesContent() {
       ...(filters.mode ? { mode: filters.mode as JobMode } : {}),
       ...(filters.tags.length > 0 ? { tags: filters.tags } : {}),
       ...(filters.closingSoon ? { closingSoon: true } : {}),
+      ...(filters.closed ? { closed: true } : {}),
       sort: filters.sort as JobSort,
       page,
       limit: 12,
@@ -130,6 +132,7 @@ function OpportunitiesContent() {
         mode: merged.mode,
         tags: merged.tags,
         closingSoon: merged.closingSoon,
+        closed: merged.closed,
         sort: merged.sort === 'newest' ? '' : merged.sort,
       });
 
@@ -152,8 +155,42 @@ function OpportunitiesContent() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <PageHeader
-        title="Opportunities"
-        description="Every placement, internship, hackathon, certification and event — in one searchable place."
+        title={filters.closed ? 'Closed opportunities' : 'Opportunities'}
+        description={
+          filters.closed
+            ? 'Deadlines that have passed. You can still open any of these and apply if the link is live.'
+            : 'Every placement, internship, hackathon, certification and event — in one searchable place.'
+        }
+        action={
+          <div className="inline-flex rounded-lg border border-border p-0.5">
+            <button
+              type="button"
+              onClick={() => updateFilters({ closed: false })}
+              aria-pressed={!filters.closed}
+              className={
+                'rounded-md px-3 py-1.5 text-sm font-medium transition-colors ' +
+                (!filters.closed
+                  ? 'bg-secondary text-foreground'
+                  : 'text-muted-foreground hover:text-foreground')
+              }
+            >
+              Live
+            </button>
+            <button
+              type="button"
+              onClick={() => updateFilters({ closed: true })}
+              aria-pressed={filters.closed}
+              className={
+                'rounded-md px-3 py-1.5 text-sm font-medium transition-colors ' +
+                (filters.closed
+                  ? 'bg-secondary text-foreground'
+                  : 'text-muted-foreground hover:text-foreground')
+              }
+            >
+              Closed
+            </button>
+          </div>
+        }
       />
 
       <div className="mb-8">

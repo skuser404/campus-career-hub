@@ -298,6 +298,18 @@ function buildFilters(query: JobQuery | AdminJobQuery, viewer: Viewer | null): S
   const eligibility = eligibilityFilter(viewer);
   if (eligibility) filters.push(eligibility);
 
+  // Deadline lifecycle (students only). A past deadline drops an opportunity out
+  // of the live list and into the Closed view — the status stays `published` and
+  // the record is never deleted, so the detail page still opens and the apply
+  // link still works if the company kept it live.
+  if (!isAdmin) {
+    if (query.closed) {
+      filters.push(sql`(${jobs.deadline} IS NOT NULL AND ${jobs.deadline} < now())`);
+    } else {
+      filters.push(sql`(${jobs.deadline} IS NULL OR ${jobs.deadline} >= now())`);
+    }
+  }
+
   if (query.q) {
     filters.push(sql`${searchVector} @@ plainto_tsquery('english', ${query.q})`);
   }
@@ -743,8 +755,12 @@ export async function getFeatured(viewer: Viewer | null) {
       .innerJoin(companies, eq(jobs.companyId, companies.id))
       .innerJoin(categories, eq(jobs.categoryId, categories.id));
 
+  // The rails only ever show LIVE opportunities — a deadline in the future or
+  // none. Expired ones live in the Closed view, not on the dashboard.
+  const live = sql`(${jobs.deadline} IS NULL OR ${jobs.deadline} >= now())`;
+
   const [latest, closingSoon, featured] = await Promise.all([
-    base().where(and(...visible)).orderBy(desc(jobs.createdAt)).limit(6),
+    base().where(and(...visible, live)).orderBy(desc(jobs.createdAt)).limit(6),
 
     base()
       .where(and(...visible, gte(jobs.deadline, now), lte(jobs.deadline, horizon)))
@@ -752,7 +768,7 @@ export async function getFeatured(viewer: Viewer | null) {
       .limit(6),
 
     base()
-      .where(and(...visible, eq(jobs.isFeatured, true)))
+      .where(and(...visible, live, eq(jobs.isFeatured, true)))
       .orderBy(desc(jobs.createdAt))
       .limit(6),
   ]);

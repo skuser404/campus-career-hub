@@ -198,7 +198,7 @@ export async function getOverview(days: number): Promise<AnalyticsOverview> {
 }
 
 export async function getDashboard(): Promise<AdminDashboardStats> {
-  const [totals, recentJobs, recentUsers] = await Promise.all([
+  const [totals, recentJobs, recentUsers, counts, upcoming, pendingReports] = await Promise.all([
     getTotals(),
 
     db
@@ -213,7 +213,7 @@ export async function getDashboard(): Promise<AdminDashboardStats> {
       .from(jobs)
       .innerJoin(companies, eq(jobs.companyId, companies.id))
       .orderBy(desc(jobs.createdAt))
-      .limit(5),
+      .limit(6),
 
     db
       .select({
@@ -225,11 +225,69 @@ export async function getDashboard(): Promise<AdminDashboardStats> {
       .from(users)
       .where(eq(users.role, 'student'))
       .orderBy(desc(users.createdAt))
-      .limit(5),
+      .limit(6),
+
+    // Closed (deadline passed) and expiring-today counts, both over published
+    // opportunities — computed against `now()` so they are always current
+    // without a background job flipping statuses.
+    db.execute<{ closed: number; expired_today: number }>(sql`
+      SELECT
+        COUNT(*) FILTER (
+          WHERE status = 'published' AND deadline IS NOT NULL AND deadline < now()
+        )::int AS closed,
+        COUNT(*) FILTER (
+          WHERE status = 'published' AND deadline::date = current_date AND deadline >= now()
+        )::int AS expired_today
+      FROM jobs
+    `),
+
+    db
+      .select({
+        id: jobs.id,
+        slug: jobs.slug,
+        role: jobs.role,
+        companyName: companies.name,
+        deadline: jobs.deadline,
+      })
+      .from(jobs)
+      .innerJoin(companies, eq(jobs.companyId, companies.id))
+      .where(
+        and(
+          eq(jobs.status, 'published'),
+          gte(jobs.deadline, new Date()),
+          lte(jobs.deadline, new Date(Date.now() + CLOSING_SOON_DAYS * 86_400_000)),
+        ),
+      )
+      .orderBy(sql`${jobs.deadline} ASC`)
+      .limit(6),
+
+    // Opportunity reports awaiting review. The table may not exist yet (it is
+    // added in a later migration), so a failure here degrades to zero rather than
+    // taking the whole dashboard down.
+    db
+      .execute<{ n: number }>(
+        sql`SELECT COUNT(*)::int AS n FROM opportunity_reports WHERE status = 'pending'`,
+      )
+      .then((r) => r.rows[0]?.n ?? 0)
+      .catch(() => 0),
   ]);
+
+  const countRow = counts.rows[0] ?? { closed: 0, expired_today: 0 };
 
   return {
     totals,
+    closedCount: Number(countRow.closed),
+    expiredTodayCount: Number(countRow.expired_today),
+    pendingReportsCount: pendingReports,
+    upcomingDeadlines: upcoming
+      .filter((u) => u.deadline)
+      .map((u) => ({
+        id: u.id,
+        slug: u.slug,
+        role: u.role,
+        companyName: u.companyName,
+        deadline: (u.deadline as Date).toISOString(),
+      })),
     recentJobs: recentJobs.map((j) => ({ ...j, createdAt: j.createdAt.toISOString() })),
     recentUsers: recentUsers.map((u) => ({ ...u, createdAt: u.createdAt.toISOString() })),
   };

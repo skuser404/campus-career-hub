@@ -28,6 +28,8 @@ export interface FilterState {
   tags: string[];
   sort: string;
   closingSoon: boolean;
+  /** Viewing the Closed (past-deadline) opportunities instead of the live ones. */
+  closed: boolean;
 }
 
 interface JobFiltersProps {

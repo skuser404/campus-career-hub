@@ -290,6 +290,49 @@ describe('opportunity visibility (no department filtering)', () => {
     const roles = (res.body.data as Array<{ role: string }>).map((j) => j.role);
     expect(roles).toContain('Unpublished Draft');
   });
+
+  /**
+   * Deadline lifecycle. A past deadline must move an opportunity OUT of the live
+   * list and INTO the Closed view — without deleting it, and without breaking the
+   * detail page. This is the "fix every deadline bug" requirement, pinned.
+   */
+  it('moves a past-deadline opportunity to Closed but keeps it openable', async () => {
+    const yesterday = new Date(Date.now() - 86_400_000).toISOString();
+
+    const created = await request(app)
+      .post('/api/v1/admin/jobs')
+      .set('Cookie', adminCookie)
+      .send({
+        companyName: `${TAG} Expired Co`,
+        role: 'Expired Role',
+        description: 'A closed opportunity.',
+        applicationLink: 'https://example.com/apply',
+        deadline: yesterday,
+        status: 'published',
+        skills: [],
+      });
+    expect(created.status).toBe(201);
+    const slug = created.body.data.slug as string;
+
+    // Not in the live list…
+    const live = await request(app).get('/api/v1/jobs?limit=100').set('Cookie', cse4.cookie);
+    expect((live.body.data as Array<{ role: string }>).map((j) => j.role)).not.toContain('Expired Role');
+
+    // …but present in the Closed view…
+    const closed = await request(app)
+      .get('/api/v1/jobs?closed=true&limit=100')
+      .set('Cookie', cse4.cookie);
+    expect((closed.body.data as Array<{ role: string }>).map((j) => j.role)).toContain('Expired Role');
+
+    // …and the detail page still opens, so a student can still click Apply.
+    const detail = await request(app).get(`/api/v1/jobs/${slug}`).set('Cookie', cse4.cookie);
+    expect(detail.status).toBe(200);
+    expect(detail.body.data.role).toBe('Expired Role');
+
+    await request(app)
+      .delete(`/api/v1/admin/jobs/${created.body.data.id}`)
+      .set('Cookie', adminCookie);
+  });
 });
 
 /**
