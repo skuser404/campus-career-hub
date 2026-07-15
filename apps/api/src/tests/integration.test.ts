@@ -233,13 +233,16 @@ describe('opportunity visibility (no department filtering)', () => {
   });
 
   it('lets any student open any published opportunity by its slug', async () => {
-    // The old model 404'd an "ineligible" student here. There is no such thing now.
+    // The old model 404'd an "ineligible" student here. There is no such thing now:
+    // both the CSE-tagged and ECE-tagged postings open for every student.
     for (const s of [cse2, ece4, mba1]) {
-      const res = await request(app)
-        .get(`/api/v1/jobs/${cseOnlyY4.slug}`)
-        .set('Cookie', s.cookie);
-      expect(res.status).toBe(200);
-      expect(res.body.data.role).toBe('CSE Final Year Only');
+      const cse = await request(app).get(`/api/v1/jobs/${cseOnlyY4.slug}`).set('Cookie', s.cookie);
+      expect(cse.status).toBe(200);
+      expect(cse.body.data.role).toBe('CSE Final Year Only');
+
+      const ece = await request(app).get(`/api/v1/jobs/${eceOnly.slug}`).set('Cookie', s.cookie);
+      expect(ece.status).toBe(200);
+      expect(ece.body.data.role).toBe('ECE Only Any Year');
     }
   });
 

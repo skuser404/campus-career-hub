@@ -68,8 +68,8 @@ function extractDeadline(text: string): string | null {
     '(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*';
 
   const datePatterns = [
-    // 25/12/2026, 25-12-2026, 25.12.26
-    /\b(\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4})\b/i,
+    // 25/12/2026, 25-12-2026, 25.12.26 (hyphen last in the class, so unescaped)
+    /\b(\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4})\b/i,
     // 25 Dec 2026, 25th December
     new RegExp(`\\b(\\d{1,2}(?:st|nd|rd|th)?\\s+${monthNames}(?:\\s+\\d{2,4})?)\\b`, 'i'),
     // Dec 25, 2026
@@ -99,9 +99,11 @@ function safeParseDate(raw: string): Date | null {
 
   // Numeric d/m/y — assume day-first (Indian convention), which is the whole
   // reason not to hand this to Date.parse, that guesses month-first.
-  const dmy = /^(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{2,4})$/.exec(cleaned);
+  const dmy = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})$/.exec(cleaned);
   if (dmy) {
-    let [, d, m, y] = dmy.map(Number) as [number, number, number, number];
+    const d = Number(dmy[1]);
+    const m = Number(dmy[2]);
+    let y = Number(dmy[3]);
     if (y < 100) y += 2000;
     const date = new Date(Date.UTC(y, m - 1, d, 23, 59));
     return isValidFuture(date, d, m - 1) ? date : null;

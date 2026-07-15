@@ -23,14 +23,15 @@ export default function CompaniesPage() {
   const { data, isLoading, isError, refetch } = useCompanies();
   const [q, setQ] = React.useState('');
 
-  const companies = data?.items ?? [];
-
   // Client-side filter: the full list is capped at 100 and already in memory, so
-  // a round trip per keystroke would be pure waste.
+  // a round trip per keystroke would be pure waste. `data?.items` is read inside
+  // the memo (not a derived array outside it) so the dependency is stable.
+  const companies = data?.items;
   const filtered = React.useMemo(() => {
+    const list = companies ?? [];
     const term = q.trim().toLowerCase();
-    if (!term) return companies;
-    return companies.filter((c) => c.name.toLowerCase().includes(term));
+    if (!term) return list;
+    return list.filter((c) => c.name.toLowerCase().includes(term));
   }, [companies, q]);
 
   return (
