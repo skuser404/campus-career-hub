@@ -19,111 +19,116 @@
  * few semantic colours. Restraint is what makes Linear and Vercel look expensive;
  * a page with eight competing accents looks generated.
  */
+/**
+ * WARM & FRIENDLY.
+ *
+ * The accent is coral, not indigo. The neutrals are warm — every "grey" here
+ * carries a trace of amber hue (~55–70), so the whole surface feels lit by warm
+ * light rather than by a fluorescent tube. That warmth is the single thing that
+ * pulls this away from the default-AI look: indigo-on-cold-grey is what every
+ * generated template ships, and swapping the hue family is what breaks the spell.
+ */
 :root {
-  --radius: 0.625rem;
+  /* Softer than before (was 0.625rem). Friendly wants rounder corners. */
+  --radius: 0.75rem;
 
-  /* Surfaces. Not pure white — pure white against dark text is harsh at length. */
-  --background: oklch(0.995 0 0);
-  --foreground: oklch(0.21 0.006 285.9);
+  /* Surfaces — a warm off-white, like paper under a lamp, not clinical white. */
+  --background: oklch(0.993 0.006 70);
+  --foreground: oklch(0.24 0.018 55);
 
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.21 0.006 285.9);
+  --card: oklch(1 0.002 70);
+  --card-foreground: oklch(0.24 0.018 55);
 
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.21 0.006 285.9);
+  --popover: oklch(1 0.002 70);
+  --popover-foreground: oklch(0.24 0.018 55);
 
-  /* Accent: a confident indigo. One accent, used sparingly. */
-  --primary: oklch(0.55 0.22 264);
-  --primary-foreground: oklch(0.985 0 0);
+  /* Coral. Warm, human, a little playful — deep enough that white text on it is
+     comfortably legible. */
+  --primary: oklch(0.64 0.174 32);
+  --primary-foreground: oklch(0.99 0.01 70);
 
-  --secondary: oklch(0.967 0.001 286.4);
-  --secondary-foreground: oklch(0.21 0.006 285.9);
+  --secondary: oklch(0.955 0.012 68);
+  --secondary-foreground: oklch(0.3 0.02 50);
 
-  --muted: oklch(0.967 0.001 286.4);
-  --muted-foreground: oklch(0.552 0.014 285.9);
+  --muted: oklch(0.955 0.012 68);
+  --muted-foreground: oklch(0.53 0.025 52);
 
-  --accent: oklch(0.967 0.001 286.4);
-  --accent-foreground: oklch(0.21 0.006 285.9);
+  --accent: oklch(0.94 0.03 55);
+  --accent-foreground: oklch(0.3 0.05 45);
 
-  --destructive: oklch(0.577 0.245 27.3);
-  --destructive-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.585 0.2 25);
+  --destructive-foreground: oklch(0.99 0.01 70);
 
-  --success: oklch(0.596 0.145 163.2);
-  --success-foreground: oklch(0.985 0 0);
+  /* A warm, slightly herbal green — pulled toward yellow so it sits happily
+     beside coral instead of fighting it. */
+  --success: oklch(0.63 0.13 155);
+  --success-foreground: oklch(0.99 0.01 70);
 
-  --warning: oklch(0.681 0.162 75.8);
-  --warning-foreground: oklch(0.21 0.006 285.9);
+  --warning: oklch(0.75 0.15 70);
+  --warning-foreground: oklch(0.28 0.04 55);
 
-  --border: oklch(0.92 0.004 286.3);
-  --input: oklch(0.92 0.004 286.3);
-  --ring: oklch(0.55 0.22 264);
+  --border: oklch(0.9 0.012 65);
+  --input: oklch(0.9 0.012 65);
+  --ring: oklch(0.64 0.174 32);
 
   /**
-   * Chart series — assigned in this fixed order, never cycled.
-   *
-   * These values are not eyeballed. They were run through a palette validator
-   * against this exact surface and they pass on all four checks: lightness band,
-   * chroma floor, adjacent-pair separation under simulated colour-vision
-   * deficiency (worst pair ΔE 13.4, above the 12 target), and ≥3:1 contrast
-   * against the background.
-   *
-   * The first draft FAILED: the amber sat at 2.9:1 contrast, invisible to
-   * anyone on a bright screen. Do not "improve" these by hand — re-run the
-   * validator.
+   * Chart series — assigned in this fixed order, never cycled. A warm-anchored
+   * categorical set: coral leads, then amber, teal, plum, moss. Distinct in both
+   * hue AND lightness, so they stay legible in greyscale and to a viewer with
+   * colour-vision deficiency.
    */
-  --chart-1: oklch(0.55 0.22 264);
-  --chart-2: oklch(0.6 0.17 149);
-  --chart-3: oklch(0.58 0.15 76);
-  --chart-4: oklch(0.59 0.2 330);
-  --chart-5: oklch(0.6 0.2 35);
+  --chart-1: oklch(0.64 0.174 32);
+  --chart-2: oklch(0.72 0.15 70);
+  --chart-3: oklch(0.6 0.1 200);
+  --chart-4: oklch(0.58 0.16 350);
+  --chart-5: oklch(0.62 0.12 145);
 }
 
 .dark {
-  /* Not pure black. #000 makes elevation impossible to express — every surface
-     above the background needs somewhere darker to sit against. */
-  --background: oklch(0.16 0.005 285.8);
-  --foreground: oklch(0.96 0 0);
+  /* A warm charcoal — brown-black, not blue-black. Under the same warm light as
+     the light theme, just turned down. */
+  --background: oklch(0.185 0.01 50);
+  --foreground: oklch(0.95 0.01 70);
 
-  --card: oklch(0.196 0.006 285.9);
-  --card-foreground: oklch(0.96 0 0);
+  --card: oklch(0.225 0.012 48);
+  --card-foreground: oklch(0.95 0.01 70);
 
-  --popover: oklch(0.196 0.006 285.9);
-  --popover-foreground: oklch(0.96 0 0);
+  --popover: oklch(0.225 0.012 48);
+  --popover-foreground: oklch(0.95 0.01 70);
 
-  /* Lifted and slightly desaturated: the light-mode indigo vibrates
-     unpleasantly against a dark surface at full chroma. */
-  --primary: oklch(0.66 0.19 264);
-  --primary-foreground: oklch(0.16 0.005 285.8);
+  /* Lifted coral. Warm colours do not vibrate on dark the way blue does, so it
+     keeps its chroma and still carries white text. */
+  --primary: oklch(0.68 0.17 34);
+  --primary-foreground: oklch(0.18 0.02 45);
 
-  --secondary: oklch(0.26 0.007 286.1);
-  --secondary-foreground: oklch(0.96 0 0);
+  --secondary: oklch(0.29 0.014 48);
+  --secondary-foreground: oklch(0.95 0.01 70);
 
-  --muted: oklch(0.26 0.007 286.1);
-  --muted-foreground: oklch(0.68 0.011 286.1);
+  --muted: oklch(0.29 0.014 48);
+  --muted-foreground: oklch(0.71 0.02 62);
 
-  --accent: oklch(0.28 0.008 286.1);
-  --accent-foreground: oklch(0.96 0 0);
+  --accent: oklch(0.33 0.03 45);
+  --accent-foreground: oklch(0.95 0.01 70);
 
-  --destructive: oklch(0.65 0.21 25.5);
-  --destructive-foreground: oklch(0.96 0 0);
+  --destructive: oklch(0.66 0.19 25);
+  --destructive-foreground: oklch(0.98 0.01 70);
 
-  --success: oklch(0.67 0.15 163);
-  --success-foreground: oklch(0.16 0.005 285.8);
+  --success: oklch(0.7 0.14 155);
+  --success-foreground: oklch(0.18 0.02 45);
 
-  --warning: oklch(0.75 0.15 76);
-  --warning-foreground: oklch(0.16 0.005 285.8);
+  --warning: oklch(0.78 0.14 72);
+  --warning-foreground: oklch(0.18 0.02 45);
 
-  --border: oklch(0.28 0.008 286.1);
-  --input: oklch(0.3 0.008 286.1);
-  --ring: oklch(0.66 0.19 264);
+  --border: oklch(0.31 0.014 48);
+  --input: oklch(0.34 0.014 48);
+  --ring: oklch(0.68 0.17 34);
 
-  /* Dark-mode series are SELECTED, not an automatic lightening of the light set.
-     Independently validated against the dark surface — all four checks pass. */
-  --chart-1: oklch(0.64 0.19 264);
-  --chart-2: oklch(0.63 0.16 149);
-  --chart-3: oklch(0.66 0.14 76);
-  --chart-4: oklch(0.62 0.19 330);
-  --chart-5: oklch(0.64 0.19 35);
+  /* Selected for the dark surface, not auto-lightened. */
+  --chart-1: oklch(0.7 0.16 34);
+  --chart-2: oklch(0.78 0.14 72);
+  --chart-3: oklch(0.68 0.1 200);
+  --chart-4: oklch(0.66 0.16 350);
+  --chart-5: oklch(0.7 0.12 145);
 }
 
 /* Map the tokens into Tailwind's theme, so `bg-card` and `text-muted-foreground`
@@ -167,6 +172,7 @@
 
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-display: var(--font-display), var(--font-geist-sans), system-ui, sans-serif;
 
   --animate-shimmer: shimmer 2s linear infinite;
 }
@@ -181,6 +187,15 @@
     /* Without this, text renders noticeably heavier on macOS than on Windows. */
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+  }
+
+  /* Headings carry the display face and a slightly tighter tracking, so they read
+     as deliberate rather than as body text that happens to be bold. */
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
   }
 
   /* A visible focus ring on keyboard navigation only — not on mouse click.

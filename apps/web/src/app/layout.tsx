@@ -1,8 +1,9 @@
 import type { Metadata, Viewport } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
+import { Geist, Geist_Mono, Plus_Jakarta_Sans } from 'next/font/google';
 import { Providers } from '@/providers';
 import './globals.css';
 
+// Body text. Clean, neutral, highly legible at small sizes.
 const geistSans = Geist({
   variable: '--font-geist-sans',
   subsets: ['latin'],
@@ -12,6 +13,19 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: '--font-geist-mono',
   subsets: ['latin'],
+  display: 'swap',
+});
+
+/**
+ * Headings. Plus Jakarta Sans has a rounder, warmer letterform than Geist —
+ * friendly without tipping into childish. Using a display face distinct from the
+ * body is one of the clearest signals of a designed page rather than a generated
+ * one, where everything is set in a single default sans.
+ */
+const displayFont = Plus_Jakarta_Sans({
+  variable: '--font-display',
+  subsets: ['latin'],
+  weight: ['600', '700', '800'],
   display: 'swap',
 });
 
@@ -54,7 +68,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
      * so the warning is suppressed on this element only.
      */
     <html lang="en" suppressHydrationWarning>
-      <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} ${displayFont.variable} font-sans antialiased`}
+      >
         {/* First tab stop on the page. Someone navigating by keyboard should not
             have to walk the entire nav to reach the content. */}
         <a

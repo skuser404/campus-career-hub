@@ -41,3 +41,4 @@ Thumbs.db
 .eslintcache
 .turbo/
 .vercel/
+.design-preview/
