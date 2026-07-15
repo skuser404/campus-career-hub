@@ -3,6 +3,7 @@
 import {
   Bell,
   Bookmark,
+  Building2,
   GraduationCap,
   LayoutDashboard,
   LogOut,
@@ -38,6 +39,7 @@ import { cn, initials } from '@/lib/utils';
 const NAV_LINKS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/opportunities', label: 'Opportunities', icon: Search },
+  { href: '/companies', label: 'Companies', icon: Building2 },
   { href: '/saved', label: 'Saved', icon: Bookmark },
   { href: '/applications', label: 'Applications', icon: Send },
 ];
