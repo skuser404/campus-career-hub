@@ -23,11 +23,17 @@ services:
     # flag the build fails at the first `tsc` with "command not found".
     buildCommand: npm ci --include=dev && npm run build -w @cch/shared && npm run build -w @cch/api
 
-    # Migrations run BEFORE the new code is live, so a release that needs a new
-    # column never starts serving traffic against a schema that lacks it.
-    preDeployCommand: npm run db:migrate -w @cch/api
-
     startCommand: node apps/api/dist/index.js
+
+    # NOTE: Render's FREE tier does not support a pre-deploy command, so migrations
+    # do NOT run automatically here. That is fine for now — the database is already
+    # migrated. After any future schema change, run migrations by hand from the
+    # service Shell before (or right after) the deploy:
+    #
+    #   npm run db:migrate -w @cch/api
+    #
+    # Upgrading to the Starter tier re-enables preDeployCommand if you want it
+    # automated.
 
     # Render polls this. It reports the DATABASE's real state, not just "the
     # process is alive" — an instance that cannot reach Postgres is taken out of
