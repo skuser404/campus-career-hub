@@ -1,4 +1,9 @@
-import { changePasswordSchema, firstLoginPasswordSchema, loginSchema } from '@cch/shared';
+import {
+  changePasswordSchema,
+  firstLoginPasswordSchema,
+  googleAuthSchema,
+  loginSchema,
+} from '@cch/shared';
 import { Router } from 'express';
 import { asyncHandler } from '../../lib/http';
 import { requireAuth, requireFirstLogin } from '../../middleware/auth';
@@ -23,6 +28,15 @@ authRoutes.post(
   authLimiter,
   validateBody(loginSchema),
   asyncHandler(controller.loginHandler),
+);
+
+// Google Sign-In. Same rate limit as password login — it is another door into
+// the same house, so it gets the same lock.
+authRoutes.post(
+  '/google',
+  authLimiter,
+  validateBody(googleAuthSchema),
+  asyncHandler(controller.googleHandler),
 );
 
 // Authenticated by the refresh cookie itself, not an access token — the whole

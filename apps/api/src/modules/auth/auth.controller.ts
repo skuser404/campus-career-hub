@@ -2,6 +2,7 @@ import type {
   AuthResponse,
   ChangePasswordInput,
   FirstLoginPasswordInput,
+  GoogleAuthInput,
   LoginInput,
 } from '@cch/shared';
 import type { Request, Response } from 'express';
@@ -44,6 +45,28 @@ export async function loginHandler(req: Request, res: Response) {
     // Hoisted so the client can branch on it without digging into `user`. When
     // true, the ONLY endpoint this session can reach is /auth/first-login.
     mustChangePassword: session.user.mustChangePassword,
+  };
+
+  return ok(res, body);
+}
+
+export async function googleHandler(req: Request, res: Response) {
+  const { credential } = req.body as GoogleAuthInput;
+
+  const session = await service.loginWithGoogle(credential, sessionContext(req));
+  setAuthCookies(res, session.accessToken, session.refreshToken);
+
+  await audit(req, 'login', 'user', session.user.id, {
+    email: session.user.email,
+    method: 'google',
+  });
+
+  const body: AuthResponse = {
+    user: session.user,
+    accessTokenExpiresAt: session.accessTokenExpiresAt,
+    // Always false for a Google sign-in: the USN password is retired on the way
+    // in, so there is nothing left to force.
+    mustChangePassword: false,
   };
 
   return ok(res, body);

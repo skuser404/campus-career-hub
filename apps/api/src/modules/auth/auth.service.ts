@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import {
   COLLEGE_EMAIL_DOMAIN,
   isCollegeEmail,
@@ -9,6 +10,7 @@ import { and, eq, gt, isNull, lt, ne, or } from 'drizzle-orm';
 import { db } from '../../db/client';
 import { departments, refreshTokens, users } from '../../db/schema';
 import { forbidden, passwordChangeRequired, unauthorized } from '../../lib/errors';
+import { verifyGoogleIdToken } from '../../lib/google';
 import { generateRefreshToken, hashRefreshToken, signAccessToken } from '../../lib/jwt';
 import { logger } from '../../lib/logger';
 import { DUMMY_HASH, hashPassword, verifyPassword } from '../../lib/password';
@@ -207,6 +209,69 @@ export async function login(input: LoginInput, ctx: SessionContext): Promise<Iss
   }
 
   await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, row.id));
+
+  return issueSession({ ...row, lastLoginAt: new Date() }, ctx);
+}
+
+/**
+ * Sign in with Google.
+ *
+ * The identity is verified by Google; membership is verified by us. The order is
+ * deliberate — we establish WHO the caller is before asking whether they belong,
+ * and both must pass.
+ *
+ * For a student, a successful Google sign-in also RETIRES their USN password:
+ * the whole reason the forced-change gate exists is that the USN is a guessable
+ * default, and a student who signs in with Google will never set a real one. So
+ * the first time they arrive through Google we replace the USN-derived hash with
+ * unguessable random bytes and clear the forced-change flag. The backdoor closes
+ * and they are Google-only from then on — which is exactly the model you chose.
+ */
+export async function loginWithGoogle(
+  credential: string,
+  ctx: SessionContext,
+): Promise<IssuedSession> {
+  const identity = await verifyGoogleIdToken(credential);
+
+  if (!identity.emailVerified) {
+    throw forbidden('Your Google account email is not verified.');
+  }
+
+  // Guard #1: the domain. A personal gmail that happens to be on the roll should
+  // not get in through Google either — only the college domain.
+  if (!isCollegeEmail(identity.email)) {
+    throw forbidden(
+      `Sign in with your college Google account (@${COLLEGE_EMAIL_DOMAIN}), not a personal one.`,
+    );
+  }
+
+  // Guard #2: the roll. Google proving the email is real does not make them a
+  // student — the account must already have been imported.
+  const row = await findByEmail(identity.email);
+  if (!row) {
+    throw forbidden(
+      'That account is not registered. Ask the placement office to add you, then try again.',
+    );
+  }
+
+  if (!row.isActive) {
+    throw forbidden('Your account has been disabled. Contact the placement office.');
+  }
+
+  // Retire the USN password on first Google arrival, and lift the forced-change
+  // gate — otherwise `requireAuth` would lock this student out of everything.
+  if (row.mustChangePassword) {
+    const randomHash = await hashPassword(crypto.randomBytes(32).toString('base64url'));
+    await db
+      .update(users)
+      .set({ passwordHash: randomHash, mustChangePassword: false, updatedAt: new Date() })
+      .where(eq(users.id, row.id));
+    row.mustChangePassword = false;
+  }
+
+  await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, row.id));
+
+  logger.info({ userId: row.id }, 'Student signed in with Google');
 
   return issueSession({ ...row, lastLoginAt: new Date() }, ctx);
 }

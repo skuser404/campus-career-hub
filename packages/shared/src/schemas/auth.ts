@@ -28,6 +28,23 @@ export const loginSchema = z.object({
 export type LoginInput = z.infer<typeof loginSchema>;
 
 /**
+ * Google Sign-In.
+ *
+ * The `credential` is the ID token Google's button hands back to the browser —
+ * a signed JWT the API verifies against Google's public keys. The API never
+ * trusts anything in it until that signature, the audience (our Client ID) and
+ * the issuer all check out, so a forged token buys nothing.
+ *
+ * Google proving WHO someone is does not make them a student here: the verified
+ * email must still end in the college domain AND already exist in the imported
+ * roll. Google replaces the password; it does not replace the guest list.
+ */
+export const googleAuthSchema = z.object({
+  credential: z.string().min(1, 'Missing Google credential'),
+});
+export type GoogleAuthInput = z.infer<typeof googleAuthSchema>;
+
+/**
  * The forced first-login password change.
  *
  * Separate from `changePasswordSchema` because there is no "current password"

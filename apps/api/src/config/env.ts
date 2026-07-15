@@ -45,6 +45,12 @@ const envSchema = z
     CLOUDINARY_API_SECRET: z.string().optional(),
     CLOUDINARY_UPLOAD_FOLDER: z.string().default('campus-career-hub'),
 
+    // Google Sign-In. The Client ID is not a secret (it ships in the browser
+    // anyway), but the API needs it to verify that an ID token was actually
+    // minted for THIS application. Optional: without it, the Google button is
+    // hidden and password login carries on unchanged.
+    GOOGLE_CLIENT_ID: z.string().optional(),
+
     /**
      * The admin must ALSO hold a college email.
      *
@@ -120,3 +126,6 @@ export const isDevelopment = env.NODE_ENV === 'development';
 export const isCloudinaryConfigured = Boolean(
   env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY && env.CLOUDINARY_API_SECRET,
 );
+
+/** Without a Client ID the Google endpoint returns 503 and the button is hidden. */
+export const isGoogleConfigured = Boolean(env.GOOGLE_CLIENT_ID);

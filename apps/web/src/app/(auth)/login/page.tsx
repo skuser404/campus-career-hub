@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Eye, EyeOff, Info } from 'lucide-react';
 import * as React from 'react';
 import { useForm } from 'react-hook-form';
+import { GoogleButton } from '@/components/auth/google-button';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/primitives';
@@ -29,8 +30,14 @@ export default function LoginPage() {
       <div className="mb-8">
         <h1 className="text-2xl font-semibold tracking-tight">Sign in</h1>
         <p className="mt-1.5 text-sm text-muted-foreground">
-          Use your Jain University email address.
+          Use your Jain University account.
         </p>
+      </div>
+
+      {/* Students sign in here with one tap. Renders nothing if Google is not
+          configured, leaving a clean password-only page. */}
+      <div className="mb-6">
+        <GoogleButton />
       </div>
 
       <form onSubmit={handleSubmit((data) => login.mutate(data))} className="space-y-4" noValidate>

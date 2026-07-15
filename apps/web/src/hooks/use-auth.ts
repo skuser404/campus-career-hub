@@ -40,6 +40,36 @@ export function useCurrentUser() {
   });
 }
 
+/**
+ * Google Sign-In.
+ *
+ * Sends the ID token Google's button produced to our API, which verifies it and
+ * checks the roll. On success the flow is identical to a password login — a
+ * Google user is never in the forced-change state, so there is no branch for it.
+ */
+export function useGoogleLogin() {
+  const queryClient = useQueryClient();
+  const router = useRouter();
+
+  return useMutation({
+    mutationFn: (credential: string) =>
+      api.post<AuthResponse>('/auth/google', { credential }),
+
+    onSuccess(data) {
+      queryClient.setQueryData(authKeys.me, data.user);
+      toast.success(`Welcome, ${data.user.fullName.split(' ')[0]}`);
+      router.push(data.user.role === 'admin' ? '/admin' : '/dashboard');
+      router.refresh();
+    },
+
+    onError(error) {
+      // The API's messages here are deliberately actionable ("not registered,
+      // contact the placement office"), so surface them verbatim.
+      toast.error(error instanceof ApiError ? error.message : 'Google sign-in failed');
+    },
+  });
+}
+
 export function useLogin() {
   const queryClient = useQueryClient();
   const router = useRouter();
