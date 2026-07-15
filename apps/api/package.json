@@ -16,6 +16,7 @@
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed": "tsx src/db/seed.ts",
     "db:seed:minimal": "tsx src/db/seed-minimal.ts",
+    "db:reset-admin": "tsx src/db/reset-admin.ts",
     "db:studio": "drizzle-kit studio",
     "db:check": "tsx src/db/check.ts"
   },
