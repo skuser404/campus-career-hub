@@ -8,6 +8,13 @@
       "when": 1784056556134,
       "tag": "0000_initial_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1784107260187,
+      "tag": "0001_drop_student_usn_check",
+      "breakpoints": true
     }
   ]
 }

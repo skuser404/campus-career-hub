@@ -68,40 +68,15 @@ const searchVector = sql`to_tsvector('english',
  * CSE-only opportunity by its exact slug matches zero rows and receives a 404 —
  * not a 403, because confirming the thing exists would itself leak that it does.
  */
-function eligibilityFilter(viewer: Viewer | null): SQL | undefined {
-  // An admin sees everything. That is the entire point of being an admin.
-  if (viewer?.role === 'admin') return undefined;
-
-  // Anonymous, or a student with no department on file (a bad import row):
-  // they may see only the opportunities that are open to absolutely everyone.
-  // Failing CLOSED is the only defensible default — the alternative would show
-  // every restricted posting to the one user we know least about.
-  const deptId = viewer?.departmentId ?? null;
-  const year = viewer?.year ?? null;
-
-  const departmentOk = deptId
-    ? sql`(
-        NOT EXISTS (SELECT 1 FROM ${jobDepartments} WHERE ${jobDepartments.jobId} = ${jobs.id})
-        OR EXISTS (
-          SELECT 1 FROM ${jobDepartments}
-          WHERE ${jobDepartments.jobId} = ${jobs.id}
-            AND ${jobDepartments.departmentId} = ${deptId}
-        )
-      )`
-    : sql`NOT EXISTS (SELECT 1 FROM ${jobDepartments} WHERE ${jobDepartments.jobId} = ${jobs.id})`;
-
-  const yearOk = year
-    ? sql`(
-        NOT EXISTS (SELECT 1 FROM ${jobYears} WHERE ${jobYears.jobId} = ${jobs.id})
-        OR EXISTS (
-          SELECT 1 FROM ${jobYears}
-          WHERE ${jobYears.jobId} = ${jobs.id}
-            AND ${jobYears.year} = ${year}
-        )
-      )`
-    : sql`NOT EXISTS (SELECT 1 FROM ${jobYears} WHERE ${jobYears.jobId} = ${jobs.id})`;
-
-  return and(departmentOk, yearOk);
+function eligibilityFilter(_viewer: Viewer | null): SQL | undefined {
+  // Department/year filtering was removed by design decision: every signed-in
+  // student sees every published opportunity, the same for all. The only
+  // visibility rule left is `status = 'published'`, applied by the callers.
+  //
+  // The `job_departments` / `job_years` tables and the admin targeting UI are
+  // kept in place but no longer gate visibility, so restoring filtering later is
+  // a one-function change rather than a schema migration.
+  return undefined;
 }
 
 /** Columns every job query selects. Declared once so list and detail cannot diverge. */
@@ -692,26 +667,11 @@ export async function getFeatured(viewer: Viewer | null) {
  * set of opportunities they can actually open — never one they would then be
  * 404'd on, which would be a maddening experience and an information leak.
  */
-export async function findEligibleStudentIds(jobId: string): Promise<string[]> {
+export async function findEligibleStudentIds(_jobId: string): Promise<string[]> {
+  // With department filtering removed, every active student is eligible for every
+  // opportunity — so a newly published one is announced to all of them.
   const rows = await db.execute<{ id: string }>(sql`
-    SELECT u.id
-    FROM users u
-    WHERE u.role = 'student'
-      AND u.is_active = true
-      AND (
-        NOT EXISTS (SELECT 1 FROM job_departments jd WHERE jd.job_id = ${jobId})
-        OR EXISTS (
-          SELECT 1 FROM job_departments jd
-          WHERE jd.job_id = ${jobId} AND jd.department_id = u.department_id
-        )
-      )
-      AND (
-        NOT EXISTS (SELECT 1 FROM job_years jy WHERE jy.job_id = ${jobId})
-        OR EXISTS (
-          SELECT 1 FROM job_years jy
-          WHERE jy.job_id = ${jobId} AND jy.year = u.year
-        )
-      )
+    SELECT id FROM users WHERE role = 'student' AND is_active = true
   `);
 
   return rows.rows.map((r) => r.id);

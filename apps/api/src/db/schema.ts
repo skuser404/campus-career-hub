@@ -145,8 +145,11 @@ export const users = pgTable(
       sql`${t.role} <> 'student' OR lower(${t.email}) LIKE ${sql.raw(`'%@${COLLEGE_EMAIL_DOMAIN}'`)}`,
     ),
 
-    /** A student must have a USN. An account with no institutional identity is not a student. */
-    check('users_student_has_usn', sql`${t.role} <> 'student' OR ${t.usn} IS NOT NULL`),
+    // NOTE: the "student must have a USN" constraint was removed. Under Google
+    // auto-create, a student account is minted from a verified Google identity
+    // (name, email, photo) with no USN — the college email IS the identity now.
+    // The email-domain check above still guarantees every student is on the
+    // university domain.
   ],
 );
 

@@ -10,6 +10,7 @@ import {
   jobInputSchema,
   type Job,
   type JobInput,
+  type ParsedJob,
 } from '@cch/shared';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ImageIcon, Loader2, Plus, Upload, Users, X } from 'lucide-react';
@@ -44,6 +45,8 @@ import { cn } from '@/lib/utils';
 interface JobFormProps {
   /** Absent for create, present for edit. */
   job?: Job;
+  /** Structured fields extracted from a pasted WhatsApp message, to seed a new opportunity. */
+  prefill?: ParsedJob | null;
 }
 
 /**
@@ -54,7 +57,7 @@ interface JobFormProps {
  * sync, so a change to what counts as a valid opportunity is a one-line edit in
  * `packages/shared`.
  */
-export function JobForm({ job }: JobFormProps) {
+export function JobForm({ job, prefill }: JobFormProps) {
   const router = useRouter();
   const isEdit = Boolean(job);
 
@@ -123,6 +126,48 @@ export function JobForm({ job }: JobFormProps) {
   const selectedDeptIds = watch('departmentIds') ?? [];
   const selectedYears = watch('years') ?? [];
   const imageUrl = watch('imageUrl');
+
+  /**
+   * Seed the form from a parsed WhatsApp message.
+   *
+   * Only fields the parser actually found are written, so an extraction miss
+   * leaves the field blank rather than clobbering it with an empty string. Company
+   * and tags are matched to existing records by name; an unmatched company is
+   * left for the admin to pick or add — the parser never invents a company row.
+   */
+  React.useEffect(() => {
+    if (!prefill) return;
+
+    const set = (field: keyof JobInput, value: unknown) =>
+      setValue(field, value as never, { shouldDirty: true, shouldValidate: true });
+
+    if (prefill.role) set('role', prefill.role);
+    if (prefill.description) set('description', prefill.description);
+    if (prefill.eligibility) set('eligibility', prefill.eligibility);
+    if (prefill.salaryText) set('salaryText', prefill.salaryText);
+    if (prefill.location) set('location', prefill.location);
+    if (prefill.mode) set('mode', prefill.mode);
+    if (prefill.applicationLink) set('applicationLink', prefill.applicationLink);
+    if (prefill.deadline) {
+      // `datetime-local` wants `YYYY-MM-DDTHH:mm`, not a full ISO string.
+      set('deadline', new Date(prefill.deadline).toISOString().slice(0, 16));
+    }
+
+    if (prefill.companyName && companies?.items) {
+      const match = companies.items.find(
+        (c) => c.name.toLowerCase() === prefill.companyName?.toLowerCase(),
+      );
+      if (match) set('companyId', match.id);
+    }
+
+    if (prefill.tags.length > 0 && tags) {
+      const ids = tags
+        .filter((t) => prefill.tags.some((p) => p.toLowerCase() === t.name.toLowerCase()))
+        .map((t) => t.id);
+      if (ids.length > 0) set('tagIds', ids);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefill, companies?.items, tags]);
 
   const onSubmit = (data: JobInput) => {
     if (isEdit && job) {

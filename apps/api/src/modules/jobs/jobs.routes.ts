@@ -3,15 +3,17 @@ import {
   bulkJobActionSchema,
   jobInputSchema,
   jobQuerySchema,
+  parseJobSchema,
   updateJobSchema,
 } from '@cch/shared';
 import { Router } from 'express';
 import { z } from 'zod';
-import { asyncHandler } from '../../lib/http';
+import { asyncHandler, ok } from '../../lib/http';
 import { requireAdmin, requireAuth } from '../../middleware/auth';
 import { mutationLimiter } from '../../middleware/security';
 import { validateBody, validateParams, validateQuery } from '../../middleware/validate';
 import * as controller from './jobs.controller';
+import { parseWhatsAppMessage } from './parser.service';
 
 const idParams = z.object({ id: z.string().uuid() });
 const slugParams = z.object({ slug: z.string().min(1).max(200) });
@@ -61,6 +63,18 @@ adminJobRoutes.get(
   '/',
   validateQuery(adminJobQuerySchema),
   asyncHandler(controller.adminListHandler),
+);
+
+/**
+ * Paste a WhatsApp message, get structured fields back. Read-only — it extracts
+ * and returns, it does not create anything. The admin reviews the preview,
+ * edits, and only then publishes through POST / below.
+ */
+adminJobRoutes.post(
+  '/parse',
+  mutationLimiter,
+  validateBody(parseJobSchema),
+  asyncHandler(async (req, res) => ok(res, parseWhatsAppMessage(req.body.text))),
 );
 
 adminJobRoutes.post(

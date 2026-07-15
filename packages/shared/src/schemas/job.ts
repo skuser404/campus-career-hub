@@ -189,3 +189,32 @@ export const bulkJobActionSchema = z.object({
   action: z.enum(['publish', 'close', 'archive', 'feature', 'unfeature', 'delete']),
 });
 export type BulkJobActionInput = z.infer<typeof bulkJobActionSchema>;
+
+/**
+ * Paste a WhatsApp message; get structured fields back to review and edit.
+ *
+ * The server extracts what it confidently can (a link, a deadline, a salary
+ * line…) and leaves the rest for the admin. It is a HEAD START, never a
+ * finished job — which is why every field is optional and why the flow ends in
+ * an editable preview, not an instant publish.
+ */
+export const parseJobSchema = z.object({
+  text: z.string().trim().min(1, 'Paste the message first').max(LIMITS.DESCRIPTION_MAX),
+});
+export type ParseJobInput = z.infer<typeof parseJobSchema>;
+
+export interface ParsedJob {
+  companyName: string | null;
+  role: string | null;
+  description: string;
+  eligibility: string | null;
+  salaryText: string | null;
+  location: string | null;
+  mode: (typeof JOB_MODES)[number] | null;
+  /** ISO string when a date was confidently found, else null. */
+  deadline: string | null;
+  applicationLink: string | null;
+  tags: string[];
+  /** Which fields the parser actually filled — lets the UI highlight guesses. */
+  detected: string[];
+}

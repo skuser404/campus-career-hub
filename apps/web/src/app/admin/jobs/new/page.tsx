@@ -1,12 +1,18 @@
 'use client';
 
+import type { ParsedJob } from '@cch/shared';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import * as React from 'react';
 import { JobForm } from '@/components/admin/job-form';
+import { WhatsAppPaste } from '@/components/admin/whatsapp-paste';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/states';
 
 export default function NewJobPage() {
+  // Parsed WhatsApp data flows from the paste box into the form as a seed.
+  const [prefill, setPrefill] = React.useState<ParsedJob | null>(null);
+
   return (
     <div>
       <Button variant="ghost" size="sm" className="mb-4 -ml-2" asChild>
@@ -18,10 +24,12 @@ export default function NewJobPage() {
 
       <PageHeader
         title="New opportunity"
-        description="It stays invisible to students until you set the status to Published."
+        description="Paste a WhatsApp message to pre-fill, or fill it in by hand. It stays invisible to students until you set the status to Published."
       />
 
-      <JobForm />
+      <WhatsAppPaste onParsed={setPrefill} />
+
+      <JobForm prefill={prefill} />
     </div>
   );
 }

@@ -18,6 +18,7 @@ import type {
   ImportResult,
   Job,
   JobInput,
+  ParsedJob,
   PublicUser,
   ResetPasswordResult,
   SiteSettings,
@@ -128,6 +129,17 @@ export function useDeleteJob() {
       toast.success('Opportunity deleted');
     },
     onError: onErr('Could not delete that opportunity'),
+  });
+}
+
+/**
+ * Parse a pasted WhatsApp message into structured fields. Read-only — it returns
+ * a draft for the admin to review, it does not create anything.
+ */
+export function useParseJob() {
+  return useMutation({
+    mutationFn: (text: string) => api.post<ParsedJob>('/admin/jobs/parse', { text }),
+    onError: onErr('Could not read that message'),
   });
 }
 

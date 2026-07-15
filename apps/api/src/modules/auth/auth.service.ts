@@ -214,18 +214,16 @@ export async function login(input: LoginInput, ctx: SessionContext): Promise<Iss
 }
 
 /**
- * Sign in with Google.
+ * Sign in with Google — AUTO-CREATE model.
  *
- * The identity is verified by Google; membership is verified by us. The order is
- * deliberate — we establish WHO the caller is before asking whether they belong,
- * and both must pass.
+ * The identity is verified by Google; belonging is decided by the email domain
+ * alone. Any `@jainuniversity.ac.in` Google account is a student here, and one
+ * that has never signed in before is created on the spot from the verified
+ * Google profile (name, email, photo). The domain IS the guest list — there is
+ * no import roll to check against.
  *
- * For a student, a successful Google sign-in also RETIRES their USN password:
- * the whole reason the forced-change gate exists is that the USN is a guessable
- * default, and a student who signs in with Google will never set a real one. So
- * the first time they arrive through Google we replace the USN-derived hash with
- * unguessable random bytes and clear the forced-change flag. The backdoor closes
- * and they are Google-only from then on — which is exactly the model you chose.
+ * An admin account that already exists keeps its role and its password login;
+ * signing in with Google never demotes anyone.
  */
 export async function loginWithGoogle(
   credential: string,
@@ -237,43 +235,66 @@ export async function loginWithGoogle(
     throw forbidden('Your Google account email is not verified.');
   }
 
-  // Guard #1: the domain. A personal gmail that happens to be on the roll should
-  // not get in through Google either — only the college domain.
+  // The ONLY gate: the college domain. This is what keeps the whole internet out
+  // while letting every genuine student in without an admin lifting a finger.
   if (!isCollegeEmail(identity.email)) {
     throw forbidden(
       `Sign in with your college Google account (@${COLLEGE_EMAIL_DOMAIN}), not a personal one.`,
     );
   }
 
-  // Guard #2: the roll. Google proving the email is real does not make them a
-  // student — the account must already have been imported.
-  const row = await findByEmail(identity.email);
-  if (!row) {
-    throw forbidden(
-      'That account is not registered. Ask the placement office to add you, then try again.',
-    );
-  }
+  const existing = await findByEmail(identity.email);
 
-  if (!row.isActive) {
-    throw forbidden('Your account has been disabled. Contact the placement office.');
-  }
+  if (existing) {
+    if (!existing.isActive) {
+      throw forbidden('Your account has been disabled. Contact the placement office.');
+    }
 
-  // Retire the USN password on first Google arrival, and lift the forced-change
-  // gate — otherwise `requireAuth` would lock this student out of everything.
-  if (row.mustChangePassword) {
-    const randomHash = await hashPassword(crypto.randomBytes(32).toString('base64url'));
+    // Refresh the profile from Google (a student may have changed their photo or
+    // display name) and record the visit. Role is left untouched — an admin stays
+    // an admin.
     await db
       .update(users)
-      .set({ passwordHash: randomHash, mustChangePassword: false, updatedAt: new Date() })
-      .where(eq(users.id, row.id));
-    row.mustChangePassword = false;
+      .set({
+        fullName: identity.name ?? existing.fullName,
+        avatarUrl: identity.picture ?? existing.avatarUrl,
+        lastLoginAt: new Date(),
+        // A returning account should never be stuck behind the forced-change gate.
+        mustChangePassword: false,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, existing.id));
+
+    logger.info({ userId: existing.id }, 'Existing account signed in with Google');
+
+    const refreshed = await findById(existing.id);
+    return issueSession(refreshed as UserJoined, ctx);
   }
 
-  await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, row.id));
+  // First time: mint the account from the verified Google identity.
+  //
+  // There is no password to set — this account will only ever authenticate
+  // through Google — so the stored hash is unguessable random bytes purely to
+  // satisfy the NOT NULL column, and `mustChangePassword` is false.
+  const [created] = await db
+    .insert(users)
+    .values({
+      email: identity.email,
+      passwordHash: await hashPassword(crypto.randomBytes(32).toString('base64url')),
+      fullName: identity.name ?? identity.email.split('@')[0] ?? 'Student',
+      role: 'student',
+      avatarUrl: identity.picture ?? null,
+      mustChangePassword: false,
+      lastLoginAt: new Date(),
+    })
+    .returning({ id: users.id });
 
-  logger.info({ userId: row.id }, 'Student signed in with Google');
+  if (!created) throw forbidden('Could not create your account. Please try again.');
 
-  return issueSession({ ...row, lastLoginAt: new Date() }, ctx);
+  logger.info({ userId: created.id, email: identity.email }, 'New student auto-created via Google');
+
+  const row = await findById(created.id);
+  return issueSession(row as UserJoined, ctx);
 }
 
 /**

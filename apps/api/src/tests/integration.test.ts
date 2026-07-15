@@ -203,160 +203,154 @@ afterAll(async () => {
 // The security property this system exists to provide.
 // ═══════════════════════════════════════════════════════════════════════
 
-describe('department & year eligibility', () => {
+/**
+ * Opportunity visibility — the "everyone sees everything" model.
+ *
+ * Department filtering was removed by design. Every signed-in student now sees
+ * every PUBLISHED opportunity, regardless of any department/year tags an admin
+ * may still attach. The only visibility rule left is status: drafts stay hidden
+ * from students and the direct-URL path must still enforce that.
+ *
+ * The fixtures deliberately still tag jobs with departments (cseOnlyY4, eceOnly)
+ * to prove those tags no longer gate anything.
+ */
+describe('opportunity visibility (no department filtering)', () => {
   const listRoles = async (cookie: string): Promise<string[]> => {
-    const res = await request(app)
-      .get('/api/v1/jobs?limit=100')
-      .set('Cookie', cookie);
-
+    const res = await request(app).get('/api/v1/jobs?limit=100').set('Cookie', cookie);
     expect(res.status).toBe(200);
     return (res.body.data as Array<{ role: string }>).map((j) => j.role);
   };
 
-  it('shows a CSE year-4 student the CSE year-4 posting', async () => {
-    expect(await listRoles(cse4.cookie)).toContain('CSE Final Year Only');
-  });
-
-  it('HIDES the CSE year-4 posting from a CSE year-2 student', async () => {
-    // Right department, wrong year. Both dimensions must hold, not just one.
-    expect(await listRoles(cse2.cookie)).not.toContain('CSE Final Year Only');
-  });
-
-  it('HIDES the CSE posting from an ECE year-4 student', async () => {
-    // Right year, wrong department.
-    expect(await listRoles(ece4.cookie)).not.toContain('CSE Final Year Only');
-  });
-
-  it('HIDES the ECE posting from a CSE student', async () => {
-    expect(await listRoles(cse4.cookie)).not.toContain('ECE Only Any Year');
-
-    // And by its direct URL, which is the case a pasted link would hit.
-    const direct = await request(app)
-      .get(`/api/v1/jobs/${eceOnly.slug}`)
-      .set('Cookie', cse4.cookie);
-    expect(direct.status).toBe(404);
-  });
-
-  it('shows the ECE posting to an ECE student of ANY year', async () => {
-    // `years: []` on that posting means every year — so this must pass for a
-    // student whose year was never explicitly listed.
-    const res = await request(app)
-      .get(`/api/v1/jobs/${eceOnly.slug}`)
-      .set('Cookie', ece4.cookie);
-
-    expect(res.status).toBe(200);
-    expect(res.body.data.years).toEqual([]);
-  });
-
-  it('shows an unrestricted posting to EVERY department and year', async () => {
-    // The most important default in the system. An empty eligibility list means
-    // "everyone" — get this backwards and every new posting is invisible to the
-    // entire university.
+  it('shows EVERY published opportunity to EVERY student, tags notwithstanding', async () => {
+    // cseOnlyY4 and eceOnly still carry department tags in the fixtures; they must
+    // now be visible to all four students regardless.
     for (const s of [cse4, cse2, ece4, mba1]) {
-      expect(await listRoles(s.cookie)).toContain('Open To Everyone');
+      const roles = await listRoles(s.cookie);
+      expect(roles).toContain('CSE Final Year Only');
+      expect(roles).toContain('ECE Only Any Year');
+      expect(roles).toContain('Open To Everyone');
     }
   });
 
-  it('never shows a draft to any student, even by its direct URL', async () => {
-    for (const s of [cse4, cse2, ece4, mba1]) {
-      expect(await listRoles(s.cookie)).not.toContain('Unpublished Draft');
-
-      // The draft is open to every department and year — so ONLY its status is
-      // keeping it hidden. If the status filter ever regresses, this catches it
-      // even though the eligibility filter would happily let it through.
-      const direct = await request(app)
-        .get(`/api/v1/jobs/${draftJob.slug}`)
-        .set('Cookie', s.cookie);
-
-      expect(direct.status).toBe(404);
-    }
-  });
-
-  it('shows an admin everything, including drafts', async () => {
-    const res = await request(app)
-      .get('/api/v1/admin/jobs?limit=100')
-      .set('Cookie', adminCookie);
-
-    expect(res.status).toBe(200);
-    const roles = (res.body.data as Array<{ role: string }>).map((j) => j.role);
-
-    expect(roles).toContain('CSE Final Year Only');
-    expect(roles).toContain('ECE Only Any Year');
-    expect(roles).toContain('Unpublished Draft');
-  });
-
-  // ── The direct-URL attack ────────────────────────────────────────────
-  //
-  // A list filter that a detail page does not repeat is not a security control.
-  // This is the case a classmate pasting a link would hit.
-
-  it('404s an ineligible student who opens the posting by its exact slug', async () => {
+  it('lets any student open any published opportunity by its slug', async () => {
+    // The old model 404'd an "ineligible" student here. There is no such thing now.
     for (const s of [cse2, ece4, mba1]) {
       const res = await request(app)
         .get(`/api/v1/jobs/${cseOnlyY4.slug}`)
         .set('Cookie', s.cookie);
-
-      // 404, NOT 403. A 403 would confirm the opportunity exists, which tells an
-      // ineligible student exactly what they are missing.
-      expect(res.status).toBe(404);
+      expect(res.status).toBe(200);
+      expect(res.body.data.role).toBe('CSE Final Year Only');
     }
   });
 
-  it('lets the eligible student open it by slug', async () => {
-    const res = await request(app)
-      .get(`/api/v1/jobs/${cseOnlyY4.slug}`)
-      .set('Cookie', cse4.cookie);
-
-    expect(res.status).toBe(200);
-    expect(res.body.data.role).toBe('CSE Final Year Only');
-  });
-
-  it('refuses to let an ineligible student SAVE a restricted posting', async () => {
-    const res = await request(app)
+  it('lets any student save, apply to, and view any published opportunity', async () => {
+    const save = await request(app)
       .post(`/api/v1/me/saved/${cseOnlyY4.id}`)
       .set('Cookie', mba1.cookie);
+    expect(save.status).toBe(201);
 
-    expect(res.status).toBe(404);
-  });
-
-  it('refuses to let an ineligible student APPLY to a restricted posting', async () => {
-    const res = await request(app)
+    const apply = await request(app)
       .post('/api/v1/me/applications')
-      .set('Cookie', mba1.cookie)
+      .set('Cookie', ece4.cookie)
       .send({ jobId: cseOnlyY4.id, status: 'applied' });
+    expect(apply.status).toBe(201);
 
-    expect(res.status).toBe(404);
-  });
-
-  it('refuses to let an ineligible student inflate its view count', async () => {
-    const res = await request(app)
+    const view = await request(app)
       .post(`/api/v1/jobs/${cseOnlyY4.id}/view`)
-      .set('Cookie', mba1.cookie);
-
-    expect(res.status).toBe(404);
+      .set('Cookie', cse2.cookie);
+    expect(view.status).toBe(204);
   });
 
-  it('does not leak a restricted posting through full-text search', async () => {
-    const res = await request(app)
-      .get('/api/v1/jobs?q=Final%20Year')
-      .set('Cookie', mba1.cookie);
+  it('surfaces any published opportunity through full-text search for everyone', async () => {
+    const res = await request(app).get('/api/v1/jobs?q=Final%20Year').set('Cookie', mba1.cookie);
+    expect(res.status).toBe(200);
+    expect((res.body.data as Array<{ role: string }>).map((j) => j.role)).toContain(
+      'CSE Final Year Only',
+    );
+  });
 
+  it('STILL hides a draft from students, list and direct URL alike', async () => {
+    // Status remains a real boundary even though department is not.
+    for (const s of [cse4, cse2, ece4, mba1]) {
+      expect(await listRoles(s.cookie)).not.toContain('Unpublished Draft');
+
+      const direct = await request(app)
+        .get(`/api/v1/jobs/${draftJob.slug}`)
+        .set('Cookie', s.cookie);
+      expect(direct.status).toBe(404);
+    }
+  });
+
+  it('still shows an admin everything, including drafts', async () => {
+    const res = await request(app).get('/api/v1/admin/jobs?limit=100').set('Cookie', adminCookie);
     expect(res.status).toBe(200);
     const roles = (res.body.data as Array<{ role: string }>).map((j) => j.role);
-    expect(roles).not.toContain('CSE Final Year Only');
+    expect(roles).toContain('Unpublished Draft');
+  });
+});
+
+/**
+ * WhatsApp message parsing. Pure function, so exercised directly — no HTTP.
+ */
+describe('WhatsApp message parser', () => {
+  it('extracts the link, deadline, salary and mode from a realistic message', async () => {
+    const { parseWhatsAppMessage } = await import('../modules/jobs/parser.service');
+
+    const parsed = parseWhatsAppMessage(
+      [
+        '*Software Engineer at Google*',
+        'Role: Backend Engineer',
+        'Eligibility: 2026 batch, CGPA 7+',
+        'Package: 24 LPA',
+        'Location: Bengaluru (Hybrid)',
+        'Last date to apply: 25/12/2026',
+        'Apply here 👇',
+        'https://careers.google.com/jobs/123',
+      ].join('\n'),
+    );
+
+    expect(parsed.applicationLink).toBe('https://careers.google.com/jobs/123');
+    expect(parsed.role).toBeTruthy();
+    expect(parsed.companyName).toBeTruthy();
+    expect(parsed.eligibility).toContain('2026');
+    expect(parsed.salaryText).toMatch(/24/);
+    expect(parsed.mode).toBe('hybrid');
+    expect(parsed.deadline).not.toBeNull();
+    // Day-first parsing: 25 Dec, not a rolled-over 12 Dut.
+    expect(new Date(parsed.deadline as string).getUTCMonth()).toBe(11);
+    expect(parsed.detected).toContain('applicationLink');
   });
 
-  it('does not leak a restricted posting through the featured rails', async () => {
-    const res = await request(app).get('/api/v1/jobs/featured').set('Cookie', mba1.cookie);
+  it('leaves fields null rather than guessing when the message is sparse', async () => {
+    const { parseWhatsAppMessage } = await import('../modules/jobs/parser.service');
+    const parsed = parseWhatsAppMessage('Some opportunity, ping me for details');
 
-    expect(res.status).toBe(200);
-    const all = [
-      ...res.body.data.latest,
-      ...res.body.data.closingSoon,
-      ...res.body.data.featured,
-    ] as Array<{ role: string }>;
+    expect(parsed.applicationLink).toBeNull();
+    expect(parsed.deadline).toBeNull();
+    expect(parsed.salaryText).toBeNull();
+    // The description always falls back to the raw text, so nothing is lost.
+    expect(parsed.description.length).toBeGreaterThan(0);
+  });
+});
 
-    expect(all.map((j) => j.role)).not.toContain('CSE Final Year Only');
+/**
+ * Google Sign-In endpoint. A real ID token cannot be minted in a test, but the
+ * endpoint's guardrails can still be checked: it must reject a missing credential
+ * at the schema, and fail safe (503) when no Client ID is configured — which is
+ * the case in the test environment.
+ */
+describe('Google Sign-In endpoint', () => {
+  it('rejects a request with no credential', async () => {
+    const res = await request(app).post('/api/v1/auth/google').send({});
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('fails safe with 503 when Google is not configured', async () => {
+    const res = await request(app)
+      .post('/api/v1/auth/google')
+      .send({ credential: 'not-a-real-token' });
+    expect(res.status).toBe(503);
   });
 });
 
@@ -537,22 +531,22 @@ describe('authorisation', () => {
     expect(me.body.data.role).toBe('student');
   });
 
-  it('does NOT let a student change their own department to see other postings', async () => {
+  it('ignores unknown fields on a profile update (mass-assignment guard)', async () => {
+    // Department filtering is gone, but the mass-assignment guard still matters:
+    // the self-service profile endpoint must never accept fields it does not own
+    // (role, department, year). The Zod schema strips unknown keys and the
+    // service copies an explicit allowlist — two independent layers.
     await request(app)
       .patch('/api/v1/me/profile')
       .set('Cookie', mba1.cookie)
-      .send({ departmentId: cseDeptId, year: 4 });
+      .send({ departmentId: cseDeptId, year: 4, role: 'admin' });
 
     const me = await request(app).get('/api/v1/auth/me').set('Cookie', mba1.cookie);
 
-    // If this ever passes, every department restriction in the system is void.
-    expect(me.body.data.department.code).toBe('MBA');
+    // None of the injected fields took effect.
+    expect(me.body.data.role).toBe('student');
+    expect(me.body.data.department?.code).toBe('MBA');
     expect(me.body.data.year).toBe(1);
-
-    const res = await request(app)
-      .get(`/api/v1/jobs/${cseOnlyY4.slug}`)
-      .set('Cookie', mba1.cookie);
-    expect(res.status).toBe(404);
   });
 
   it('does NOT let one student touch another student\'s application', async () => {
