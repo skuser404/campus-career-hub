@@ -55,7 +55,7 @@ schema rejects that outright.
 |---------|-------|
 | Root Directory | *(blank — it is a monorepo)* |
 | Runtime | Node |
-| Build Command | `npm ci && npm run build -w @cch/shared && npm run build -w @cch/api` |
+| Build Command | `npm ci --include=dev && npm run build -w @cch/shared && npm run build -w @cch/api` |
 | **Pre-Deploy Command** | `npm run db:migrate -w @cch/api` |
 | Start Command | `node apps/api/dist/index.js` |
 | Health Check Path | `/health` |

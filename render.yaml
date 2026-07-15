@@ -17,7 +17,11 @@ services:
     region: singapore
     branch: main
 
-    buildCommand: npm ci && npm run build -w @cch/shared && npm run build -w @cch/api
+    # `--include=dev` is REQUIRED. This service runs with NODE_ENV=production, and
+    # in that mode `npm ci` omits devDependencies — but the build needs TypeScript
+    # (dev) to compile, and the pre-deploy migration needs tsx (dev). Without this
+    # flag the build fails at the first `tsc` with "command not found".
+    buildCommand: npm ci --include=dev && npm run build -w @cch/shared && npm run build -w @cch/api
 
     # Migrations run BEFORE the new code is live, so a release that needs a new
     # column never starts serving traffic against a schema that lacks it.
