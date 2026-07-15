@@ -15,6 +15,13 @@
       "when": 1784107260187,
       "tag": "0001_drop_student_usn_check",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784156191018,
+      "tag": "0002_job_free_text_fields",
+      "breakpoints": true
     }
   ]
 }

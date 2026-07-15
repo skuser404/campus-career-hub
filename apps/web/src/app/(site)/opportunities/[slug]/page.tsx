@@ -26,7 +26,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorState } from '@/components/ui/states';
 import { useCurrentUser } from '@/hooks/use-auth';
 import { recordJobView, useJob, useMarkApplied, useToggleSave } from '@/hooks/use-jobs';
-import { formatDateTime, formatSalary, getDeadlineInfo } from '@/lib/utils';
+import { formatDateTime, formatLpa, getDeadlineInfo } from '@/lib/utils';
 
 export default function JobDetailPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -164,7 +164,7 @@ export default function JobDetailPage() {
           <Fact
             icon={Wallet}
             label="Compensation"
-            value={formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency, job.salaryText)}
+            value={formatLpa(job.salaryFromLpa, job.salaryToLpa, job.internshipStipend) ?? 'Not disclosed'}
           />
           <Fact icon={MapPin} label="Location" value={job.location ?? 'Not specified'} />
           <Fact
@@ -253,6 +253,28 @@ export default function JobDetailPage() {
             </Button>
           )}
         </div>
+
+        {/* Extra links a placement message often carries. */}
+        {job.whatsappGroupLink || job.collegeRegLink ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {job.collegeRegLink ? (
+              <Button variant="secondary" size="sm" asChild>
+                <a href={job.collegeRegLink} target="_blank" rel="noopener noreferrer">
+                  College registration
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              </Button>
+            ) : null}
+            {job.whatsappGroupLink ? (
+              <Button variant="secondary" size="sm" asChild>
+                <a href={job.whatsappGroupLink} target="_blank" rel="noopener noreferrer">
+                  WhatsApp group
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       {/* ── Body ────────────────────────────────────────────────────────── */}

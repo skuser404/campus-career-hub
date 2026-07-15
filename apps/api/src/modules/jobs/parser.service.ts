@@ -122,28 +122,81 @@ function isValidFuture(date: Date, day: number, month: number): boolean {
   return date.getUTCDate() === day && date.getUTCMonth() === month;
 }
 
-function extractSalary(lines: string[]): string | null {
-  const labeled = findLabeled(lines, ['salary', 'ctc', 'package', 'stipend', 'compensation']);
-  if (labeled) return labeled.slice(0, 100);
-
-  for (const line of lines) {
-    // ₹ figures, "12 LPA", "40k stipend"
-    if (/(₹|\brs\.?\b|\b\d+(\.\d+)?\s*(lpa|lakhs?|k\b|per month|\/month|month))/i.test(line)) {
-      return line.trim().replace(/\*+/g, '').slice(0, 100);
-    }
+/**
+ * Salary in LPA, as a From–To range.
+ *
+ * Trusts only figures next to an LPA/lakh unit — a bare "40000" is far more
+ * likely a stipend or a registration count than an annual package, and guessing
+ * it as a salary would publish a wrong number.
+ */
+function extractSalaryLpa(text: string): { from: number | null; to: number | null } {
+  // "4.5 - 6 LPA", "4 to 6 lakhs", "4–6 LPA"
+  const range = /(\d+(?:\.\d+)?)\s*(?:-|to|–|—)\s*(\d+(?:\.\d+)?)\s*(?:lpa|lakhs?|lac)/i.exec(text);
+  if (range) {
+    const from = Number(range[1]);
+    const to = Number(range[2]);
+    if (from <= 999 && to <= 999) return { from, to };
   }
+
+  // "24 LPA", "6.5 lakhs"
+  const single = /(\d+(?:\.\d+)?)\s*(?:lpa|lakhs?|lac)\b/i.exec(text);
+  if (single) {
+    const from = Number(single[1]);
+    if (from <= 999) return { from, to: null };
+  }
+
+  return { from: null, to: null };
+}
+
+/** Internship stipend — a monthly figure, distinct from an annual CTC. */
+function extractStipend(lines: string[], text: string): string | null {
+  const labeled = findLabeled(lines, ['stipend']);
+  if (labeled) return labeled.slice(0, 120);
+
+  // "40k/month", "₹25,000 per month", "Stipend: 30000"
+  const m = /((?:₹\s*)?\d[\d,]*\.?\d*\s*k?\s*(?:\/|per)\s*month)/i.exec(text);
+  if (m) return (m[1] as string).trim().slice(0, 120);
+
   return null;
 }
+
+/** Graduating batch, e.g. "2026", "2026 & 2027". */
+function extractBatch(lines: string[], text: string): string | null {
+  const labeled = findLabeled(lines, ['batch', 'passing year', 'passout', 'graduating']);
+  if (labeled) return labeled.slice(0, 60);
+
+  const m = /\b(20\d{2})(?:\s*(?:&|and|,|-|–|to)\s*(20\d{2}))?\s*(?:batch|pass(?:ing|out))/i.exec(text);
+  if (m) return m[2] ? `${m[1]} & ${m[2]}` : (m[1] as string);
+
+  return null;
+}
+
+const WHATSAPP_RE = /https?:\/\/chat\.whatsapp\.com\/[^\s<>()]+/i;
 
 export function parseWhatsAppMessage(text: string): ParsedJob {
   const rawLines = text.split(/\r?\n/).map((l) => l.trim());
   const lines = rawLines.filter((l) => l.length > 0);
   const detected: string[] = [];
 
-  // ── Link ──────────────────────────────────────────────────────────────
-  const linkMatch = URL_RE.exec(text);
-  const applicationLink = linkMatch ? linkMatch[0].replace(/[).,]+$/, '') : null;
+  // ── Links: separate the WhatsApp group, the apply link, and a college link ──
+  const cleanUrl = (u: string) => u.replace(/[).,]+$/, '');
+  const allUrls = (text.match(/\bhttps?:\/\/[^\s<>()]+/gi) ?? []).map(cleanUrl);
+
+  const whatsappGroupLink = allUrls.find((u) => WHATSAPP_RE.test(u)) ?? null;
+  const nonWa = allUrls.filter((u) => !WHATSAPP_RE.test(u));
+
+  const collegeRegLink =
+    findLabeled(lines, ['college link', 'college registration', 'register here', 'registration', 'reg link'])?.match(
+      /\bhttps?:\/\/[^\s<>()]+/i,
+    )?.[0] ??
+    (nonWa.length > 1 ? (nonWa[1] as string) : null);
+
+  // The apply link is the first non-WhatsApp URL that is not the college link.
+  const applicationLink = nonWa.find((u) => u !== collegeRegLink) ?? nonWa[0] ?? null;
+
   if (applicationLink) detected.push('applicationLink');
+  if (whatsappGroupLink) detected.push('whatsappGroupLink');
+  if (collegeRegLink) detected.push('collegeRegLink');
 
   // ── Labelled fields (the reliable ones) ─────────────────────────────────
   let companyName = findLabeled(lines, ['company', 'organisation', 'organization', 'firm']);
@@ -182,9 +235,15 @@ export function parseWhatsAppMessage(text: string): ParsedJob {
   const deadline = extractDeadline(text);
   if (deadline) detected.push('deadline');
 
-  // ── Salary ──────────────────────────────────────────────────────────────
-  const salaryText = extractSalary(lines);
-  if (salaryText) detected.push('salaryText');
+  // ── Salary (LPA) + stipend + batch ──────────────────────────────────────
+  const { from: salaryFromLpa, to: salaryToLpa } = extractSalaryLpa(text);
+  if (salaryFromLpa != null) detected.push('salary');
+
+  const internshipStipend = extractStipend(lines, text);
+  if (internshipStipend) detected.push('internshipStipend');
+
+  const batch = extractBatch(lines, text);
+  if (batch) detected.push('batch');
 
   // ── Mode ────────────────────────────────────────────────────────────────
   let mode: ParsedJob['mode'] = null;
@@ -196,15 +255,15 @@ export function parseWhatsAppMessage(text: string): ParsedJob {
     }
   }
 
-  // ── Tags ────────────────────────────────────────────────────────────────
-  const tags = TAG_KEYWORDS.filter((t) =>
-    new RegExp(`\\b${t.replace(/[.]/g, '\\.')}\\b`, 'i').test(text),
-  ).slice(0, 8);
-  if (tags.length) detected.push('tags');
+  // ── Skills / technologies / languages / frameworks ──────────────────────
+  const skills = TAG_KEYWORDS.filter((t) =>
+    new RegExp(`\\b${t.replace(/[.+]/g, '\\$&')}\\b`, 'i').test(text),
+  ).slice(0, 10);
+  if (skills.length) detected.push('skills');
 
-  // ── Description: the whole message, minus the bare link line ────────────
+  // ── Description: the whole message, minus bare link-only lines ──────────
   const description = lines
-    .filter((l) => !(applicationLink && l === applicationLink))
+    .filter((l) => !allUrls.includes(l))
     .join('\n')
     .trim();
 
@@ -213,12 +272,17 @@ export function parseWhatsAppMessage(text: string): ParsedJob {
     role: role ? role.slice(0, 200) : null,
     description: description || text.trim(),
     eligibility: eligibility ? eligibility.slice(0, 500) : null,
-    salaryText,
+    salaryFromLpa,
+    salaryToLpa,
+    internshipStipend,
     location: location ? location.slice(0, 100) : null,
     mode,
     deadline,
     applicationLink,
-    tags,
+    whatsappGroupLink,
+    collegeRegLink,
+    batch,
+    skills,
     detected,
   };
 }

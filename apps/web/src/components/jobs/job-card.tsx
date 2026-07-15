@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useToggleSave } from '@/hooks/use-jobs';
-import { cn, formatSalary, getDeadlineInfo, type DeadlineUrgency } from '@/lib/utils';
+import { cn, formatLpa, getDeadlineInfo, type DeadlineUrgency } from '@/lib/utils';
 
 /** How loudly the deadline badge should shout. Derived once, used everywhere. */
 const URGENCY_VARIANT: Record<DeadlineUrgency, 'destructive' | 'warning' | 'muted' | 'outline'> = {
@@ -30,6 +30,7 @@ interface JobCardProps {
 export function JobCard({ job, isAuthenticated = false }: JobCardProps) {
   const toggleSave = useToggleSave();
   const deadline = getDeadlineInfo(job.deadline);
+  const salary = formatLpa(job.salaryFromLpa, job.salaryToLpa, job.internshipStipend);
 
   const handleSave = (e: React.MouseEvent) => {
     // The whole card is a link. Without this, saving would also navigate.
@@ -108,10 +109,12 @@ export function JobCard({ job, isAuthenticated = false }: JobCardProps) {
             </span>
           ) : null}
 
-          <span className="inline-flex items-center gap-1">
-            <Wallet className="h-3.5 w-3.5" />
-            {formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency, job.salaryText)}
-          </span>
+          {salary ? (
+            <span className="inline-flex items-center gap-1">
+              <Wallet className="h-3.5 w-3.5" />
+              {salary}
+            </span>
+          ) : null}
         </div>
 
         <div className="relative z-10 mt-4 flex flex-wrap gap-1.5">

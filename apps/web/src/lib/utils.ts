@@ -13,6 +13,23 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Salary as students now read it: an LPA range, with the internship stipend as a
+ * fallback when there is no annual figure. Returns null when nothing is known, so
+ * the caller can hide the row entirely rather than print "Not disclosed".
+ */
+export function formatLpa(
+  from: number | null,
+  to: number | null,
+  stipend?: string | null,
+): string | null {
+  if (from != null && to != null && to !== from) return `${from} – ${to} LPA`;
+  if (from != null) return `${from} LPA`;
+  if (to != null) return `${to} LPA`;
+  if (stipend) return stipend;
+  return null;
+}
+
 /** ₹1,20,000 — Indian digit grouping, which is what these students expect to read. */
 export function formatSalary(
   min: number | null,

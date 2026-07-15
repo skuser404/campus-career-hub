@@ -17,19 +17,6 @@ import {
 import { departmentRefSchema } from './auth';
 import { categorySchema, companySchema, tagSchema } from './taxonomy';
 
-/**
- * Salary is modelled as a range plus an optional free-text override, rather than
- * a single string. The range is what makes "sort by salary" and "filter salary
- * >= X" possible; the free-text field exists because a great many campus postings
- * genuinely say "as per company norms", and forcing a number there would mean
- * inventing data.
- */
-const salaryFields = {
-  salaryMin: z.coerce.number().int().min(0).max(100_000_000).nullish(),
-  salaryMax: z.coerce.number().int().min(0).max(100_000_000).nullish(),
-  salaryCurrency: z.string().length(3).default('INR'),
-  salaryText: z.string().trim().max(100).nullish(),
-};
 
 /**
  * Eligibility.
@@ -52,53 +39,82 @@ const eligibilityFields = {
     .default([]),
 };
 
+/**
+ * Salary as a From–To range in LPA (lakhs per annum) — the unit every Indian
+ * placement message uses — plus a separate internship stipend, which is a
+ * different thing from an annual CTC and gets its own free-text field.
+ */
+const lpaSalaryFields = {
+  salaryFromLpa: z.coerce.number().min(0).max(999).nullish(),
+  salaryToLpa: z.coerce.number().min(0).max(999).nullish(),
+  internshipStipend: z.string().trim().max(120).nullish(),
+};
+
+const lpaRangeValid = (d: { salaryFromLpa?: number | null; salaryToLpa?: number | null }) =>
+  d.salaryFromLpa == null || d.salaryToLpa == null || d.salaryToLpa >= d.salaryFromLpa;
+
+/**
+ * The link fields. `applicationLink` (the official apply URL) is required; the
+ * WhatsApp group and college-registration links are optional extras a placement
+ * message often carries.
+ */
+const linkFields = {
+  applicationLink: httpUrlSchema,
+  whatsappGroupLink: optionalHttpUrlSchema,
+  collegeRegLink: optionalHttpUrlSchema,
+  companyLogoUrl: optionalHttpUrlSchema,
+};
+
 export const jobInputSchema = z
   .object({
-    companyId: uuidSchema,
-    categoryId: uuidSchema,
+    // Free text now — no company dropdown. The API finds an existing company of
+    // this name or creates one, so the normalised company list stays intact while
+    // the admin just types.
+    companyName: z.string().trim().min(1, 'Company name is required').max(200),
     role: z.string().trim().min(1, 'Role is required').max(LIMITS.ROLE_TITLE_MAX),
-    description: z.string().trim().min(1, 'Description is required').max(LIMITS.DESCRIPTION_MAX),
+    description: z.string().trim().min(1, 'JD is required').max(LIMITS.DESCRIPTION_MAX),
     eligibility: z.string().trim().max(LIMITS.ELIGIBILITY_MAX).nullish(),
-    ...salaryFields,
+    ...lpaSalaryFields,
     ...eligibilityFields,
     location: z.string().trim().max(LIMITS.LOCATION_MAX).nullish(),
-    mode: z.enum(JOB_MODES).default('onsite'),
+    mode: z.enum(JOB_MODES).default('not_mentioned'),
     deadline: optionalDateSchema,
-    applicationLink: httpUrlSchema,
+    ...linkFields,
     imageUrl: optionalHttpUrlSchema,
     status: z.enum(JOB_STATUSES).default('draft'),
     isFeatured: z.boolean().default(false),
-    tagIds: z.array(uuidSchema).max(LIMITS.TAGS_PER_JOB_MAX).default([]),
+    // Skills / technologies. Free-text names — the API finds-or-creates each tag,
+    // so an admin can type "Kubernetes" without it having to exist first.
+    skills: z.array(z.string().trim().min(1).max(50)).max(LIMITS.TAGS_PER_JOB_MAX).default([]),
   })
-  .refine((d) => d.salaryMin == null || d.salaryMax == null || d.salaryMax >= d.salaryMin, {
+  .refine(lpaRangeValid, {
     message: 'Maximum salary must be greater than or equal to minimum',
-    path: ['salaryMax'],
+    path: ['salaryToLpa'],
   });
 export type JobInput = z.infer<typeof jobInputSchema>;
 
 /** `.partial()` cannot be called on a refined schema, so the update variant is rebuilt. */
 export const updateJobSchema = z
   .object({
-    companyId: uuidSchema,
-    categoryId: uuidSchema,
+    companyName: z.string().trim().min(1).max(200),
     role: z.string().trim().min(1).max(LIMITS.ROLE_TITLE_MAX),
     description: z.string().trim().min(1).max(LIMITS.DESCRIPTION_MAX),
     eligibility: z.string().trim().max(LIMITS.ELIGIBILITY_MAX).nullish(),
-    ...salaryFields,
+    ...lpaSalaryFields,
     ...eligibilityFields,
     location: z.string().trim().max(LIMITS.LOCATION_MAX).nullish(),
     mode: z.enum(JOB_MODES),
     deadline: optionalDateSchema,
-    applicationLink: httpUrlSchema,
+    ...linkFields,
     imageUrl: optionalHttpUrlSchema,
     status: z.enum(JOB_STATUSES),
     isFeatured: z.boolean(),
-    tagIds: z.array(uuidSchema).max(LIMITS.TAGS_PER_JOB_MAX),
+    skills: z.array(z.string().trim().min(1).max(50)).max(LIMITS.TAGS_PER_JOB_MAX),
   })
   .partial()
-  .refine((d) => d.salaryMin == null || d.salaryMax == null || d.salaryMax >= d.salaryMin, {
+  .refine(lpaRangeValid, {
     message: 'Maximum salary must be greater than or equal to minimum',
-    path: ['salaryMax'],
+    path: ['salaryToLpa'],
   });
 export type UpdateJobInput = z.infer<typeof updateJobSchema>;
 
@@ -113,10 +129,16 @@ export const jobSchema = z.object({
   salaryMax: z.number().nullable(),
   salaryCurrency: z.string(),
   salaryText: z.string().nullable(),
+  salaryFromLpa: z.coerce.number().nullable(),
+  salaryToLpa: z.coerce.number().nullable(),
+  internshipStipend: z.string().nullable(),
   location: z.string().nullable(),
   mode: z.enum(JOB_MODES),
   deadline: z.coerce.date().nullable(),
   applicationLink: z.string(),
+  whatsappGroupLink: z.string().nullable(),
+  collegeRegLink: z.string().nullable(),
+  companyLogoUrl: z.string().nullable(),
   imageUrl: z.string().nullable(),
   status: z.enum(JOB_STATUSES),
   isFeatured: z.boolean(),
@@ -208,13 +230,20 @@ export interface ParsedJob {
   role: string | null;
   description: string;
   eligibility: string | null;
-  salaryText: string | null;
+  salaryFromLpa: number | null;
+  salaryToLpa: number | null;
+  internshipStipend: string | null;
   location: string | null;
   mode: (typeof JOB_MODES)[number] | null;
   /** ISO string when a date was confidently found, else null. */
   deadline: string | null;
   applicationLink: string | null;
-  tags: string[];
+  whatsappGroupLink: string | null;
+  collegeRegLink: string | null;
+  /** Free-text batch (e.g. "2026 & 2027") — informational, folded into eligibility. */
+  batch: string | null;
+  /** Skills / technologies / languages / frameworks detected in the message. */
+  skills: string[];
   /** Which fields the parser actually filled — lets the UI highlight guesses. */
   detected: string[];
 }

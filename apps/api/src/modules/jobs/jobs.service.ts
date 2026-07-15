@@ -22,7 +22,7 @@ import {
   tags,
 } from '../../db/schema';
 import { notFound } from '../../lib/errors';
-import { buildPaginationMeta, offset, uniqueSlug } from '../../lib/utils';
+import { buildPaginationMeta, offset, slugify, uniqueSlug } from '../../lib/utils';
 
 /**
  * Who is asking. Not optional metadata — it is the input to an authorisation
@@ -90,10 +90,16 @@ const jobColumns = {
   salaryMax: jobs.salaryMax,
   salaryCurrency: jobs.salaryCurrency,
   salaryText: jobs.salaryText,
+  salaryFromLpa: jobs.salaryFromLpa,
+  salaryToLpa: jobs.salaryToLpa,
+  internshipStipend: jobs.internshipStipend,
   location: jobs.location,
   mode: jobs.mode,
   deadline: jobs.deadline,
   applicationLink: jobs.applicationLink,
+  whatsappGroupLink: jobs.whatsappGroupLink,
+  collegeRegLink: jobs.collegeRegLink,
+  jobLogoUrl: jobs.companyLogoUrl,
   imageUrl: jobs.imageUrl,
   status: jobs.status,
   isFeatured: jobs.isFeatured,
@@ -137,10 +143,17 @@ function shapeJob(row: JobRowJoined): Omit<Job, 'tags' | 'departments' | 'years'
     salaryMax: row.salaryMax,
     salaryCurrency: row.salaryCurrency,
     salaryText: row.salaryText,
+    // Postgres `numeric` comes back as a string; make it a number for the client.
+    salaryFromLpa: row.salaryFromLpa == null ? null : Number(row.salaryFromLpa),
+    salaryToLpa: row.salaryToLpa == null ? null : Number(row.salaryToLpa),
+    internshipStipend: row.internshipStipend,
     location: row.location,
     mode: row.mode,
     deadline: row.deadline,
     applicationLink: row.applicationLink,
+    whatsappGroupLink: row.whatsappGroupLink,
+    collegeRegLink: row.collegeRegLink,
+    companyLogoUrl: row.jobLogoUrl,
     imageUrl: row.imageUrl,
     status: row.status,
     isFeatured: row.isFeatured,
@@ -473,11 +486,6 @@ export async function recordView(jobId: string, userId?: string): Promise<void> 
   });
 }
 
-const slugExists = async (slug: string): Promise<boolean> => {
-  const [hit] = await db.select({ id: jobs.id }).from(jobs).where(eq(jobs.slug, slug)).limit(1);
-  return Boolean(hit);
-};
-
 /** Replace a job's eligibility and tag sets. Used by both create and update. */
 async function writeRelations(
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
@@ -509,35 +517,126 @@ async function writeRelations(
   }
 }
 
-export async function create(input: JobInput, postedBy: string): Promise<Job> {
-  const [company] = await db
-    .select({ name: companies.name })
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Find a company by name (case-insensitive) or create it.
+ *
+ * The admin form is free-text now — no dropdown — but the database stays
+ * normalised: typing "Razorpay" reuses the existing Razorpay row or makes one, so
+ * the companies browse page keeps working and never fills with near-duplicates.
+ */
+async function findOrCreateCompany(tx: Tx, name: string, logoUrl: string | null): Promise<string> {
+  const trimmed = name.trim();
+
+  const [existing] = await tx
+    .select({ id: companies.id, logoUrl: companies.logoUrl })
     .from(companies)
-    .where(eq(companies.id, input.companyId))
+    .where(sql`lower(${companies.name}) = lower(${trimmed})`)
     .limit(1);
 
-  if (!company) throw notFound('Company');
+  if (existing) {
+    // Backfill a logo onto a company that had none — improve the record over time
+    // without overwriting a logo an admin set on purpose.
+    if (logoUrl && !existing.logoUrl) {
+      await tx
+        .update(companies)
+        .set({ logoUrl, updatedAt: new Date() })
+        .where(eq(companies.id, existing.id));
+    }
+    return existing.id;
+  }
 
-  const slug = await uniqueSlug(`${input.role} at ${company.name}`, slugExists);
+  const slug = await uniqueSlug(trimmed, async (s) => {
+    const [hit] = await tx.select({ id: companies.id }).from(companies).where(eq(companies.slug, s)).limit(1);
+    return Boolean(hit);
+  });
 
+  const [created] = await tx
+    .insert(companies)
+    .values({ name: trimmed, slug, logoUrl: logoUrl ?? null })
+    .returning({ id: companies.id });
+
+  return (created as { id: string }).id;
+}
+
+/** The default category for opportunities created without one (the form no longer asks). */
+async function getDefaultCategoryId(tx: Tx): Promise<string> {
+  const [existing] = await tx
+    .select({ id: categories.id })
+    .from(categories)
+    .where(eq(categories.slug, 'general'))
+    .limit(1);
+  if (existing) return existing.id;
+
+  await tx
+    .insert(categories)
+    .values({ name: 'General', slug: 'general', sortOrder: 999 })
+    .onConflictDoNothing({ target: categories.slug });
+
+  const [row] = await tx
+    .select({ id: categories.id })
+    .from(categories)
+    .where(eq(categories.slug, 'general'))
+    .limit(1);
+  return (row as { id: string }).id;
+}
+
+/** Turn free-text skill names into tag ids, creating any that do not exist. */
+async function resolveSkillTagIds(tx: Tx, skills: string[]): Promise<string[]> {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+
+  for (const raw of skills) {
+    const name = raw.trim();
+    if (!name) continue;
+    const slug = slugify(name);
+    if (!slug || seen.has(slug)) continue;
+    seen.add(slug);
+
+    const [existing] = await tx.select({ id: tags.id }).from(tags).where(eq(tags.slug, slug)).limit(1);
+    if (existing) {
+      ids.push(existing.id);
+      continue;
+    }
+    await tx.insert(tags).values({ name, slug }).onConflictDoNothing({ target: tags.slug });
+    const [row] = await tx.select({ id: tags.id }).from(tags).where(eq(tags.slug, slug)).limit(1);
+    if (row) ids.push(row.id);
+  }
+  return ids;
+}
+
+const lpa = (v: number | null | undefined): string | null => (v == null ? null : String(v));
+
+export async function create(input: JobInput, postedBy: string): Promise<Job> {
   const jobId = await db.transaction(async (tx) => {
+    const companyId = await findOrCreateCompany(tx, input.companyName, input.companyLogoUrl ?? null);
+    const categoryId = await getDefaultCategoryId(tx);
+
+    const slug = await uniqueSlug(`${input.role} at ${input.companyName}`, async (s) => {
+      const [hit] = await tx.select({ id: jobs.id }).from(jobs).where(eq(jobs.slug, s)).limit(1);
+      return Boolean(hit);
+    });
+
     const [row] = await tx
       .insert(jobs)
       .values({
         slug,
-        companyId: input.companyId,
-        categoryId: input.categoryId,
+        companyId,
+        categoryId,
         role: input.role,
         description: input.description,
         eligibility: input.eligibility ?? null,
-        salaryMin: input.salaryMin ?? null,
-        salaryMax: input.salaryMax ?? null,
-        salaryCurrency: input.salaryCurrency,
-        salaryText: input.salaryText ?? null,
+        companyLogoUrl: input.companyLogoUrl ?? null,
+        salaryFromLpa: lpa(input.salaryFromLpa),
+        salaryToLpa: lpa(input.salaryToLpa),
+        internshipStipend: input.internshipStipend ?? null,
         location: input.location ?? null,
         mode: input.mode,
         deadline: input.deadline ?? null,
         applicationLink: input.applicationLink,
+        whatsappGroupLink: input.whatsappGroupLink ?? null,
+        collegeRegLink: input.collegeRegLink ?? null,
         imageUrl: input.imageUrl ?? null,
         status: input.status,
         isFeatured: input.isFeatured,
@@ -547,12 +646,11 @@ export async function create(input: JobInput, postedBy: string): Promise<Job> {
 
     if (!row) throw new Error('Insert returned no row');
 
-    await writeRelations(tx, row.id, input, false);
+    const tagIds = await resolveSkillTagIds(tx, input.skills);
+    await writeRelations(tx, row.id, { departmentIds: input.departmentIds, years: input.years, tagIds }, false);
     return row.id;
   });
 
-  // Read back as an admin — a freshly created draft must be returned to the
-  // admin who made it even though no student could see it.
   return getById(jobId, { userId: postedBy, role: 'admin', departmentId: null, year: null });
 }
 
@@ -563,25 +661,32 @@ export async function update(id: string, input: UpdateJobInput, actorId: string)
   await db.transaction(async (tx) => {
     const patch: Record<string, unknown> = { updatedAt: new Date() };
 
-    // Only copy keys the caller actually sent. Spreading `input` wholesale would
-    // write `undefined` over columns the caller never mentioned.
-    const assignable = [
-      'companyId', 'categoryId', 'role', 'description', 'eligibility',
-      'salaryMin', 'salaryMax', 'salaryCurrency', 'salaryText',
-      'location', 'mode', 'deadline', 'applicationLink', 'imageUrl',
-      'status', 'isFeatured',
-    ] as const;
+    // A new company name re-resolves the company relation.
+    if (input.companyName !== undefined) {
+      patch.companyId = await findOrCreateCompany(tx, input.companyName, input.companyLogoUrl ?? null);
+    }
 
-    for (const key of assignable) {
+    // Direct columns — copy only the keys the caller actually sent, so an edit to
+    // one field never blanks the others.
+    const direct = [
+      'role', 'description', 'eligibility', 'internshipStipend', 'location',
+      'mode', 'deadline', 'applicationLink', 'whatsappGroupLink', 'collegeRegLink',
+      'companyLogoUrl', 'imageUrl', 'status', 'isFeatured',
+    ] as const;
+    for (const key of direct) {
       if (input[key] !== undefined) patch[key] = input[key];
     }
+    if (input.salaryFromLpa !== undefined) patch.salaryFromLpa = lpa(input.salaryFromLpa);
+    if (input.salaryToLpa !== undefined) patch.salaryToLpa = lpa(input.salaryToLpa);
 
     await tx.update(jobs).set(patch).where(eq(jobs.id, id));
 
-    // A present key means "this is now the set" — replace it wholesale. An absent
-    // key means "do not touch it". That distinction is why an admin editing only
-    // the salary does not accidentally wipe the department restrictions.
-    await writeRelations(tx, id, input, true);
+    const rel: { departmentIds?: string[]; years?: number[]; tagIds?: string[] } = {
+      departmentIds: input.departmentIds,
+      years: input.years,
+    };
+    if (input.skills !== undefined) rel.tagIds = await resolveSkillTagIds(tx, input.skills);
+    await writeRelations(tx, id, rel, true);
   });
 
   return getById(id, { userId: actorId, role: 'admin', departmentId: null, year: null });

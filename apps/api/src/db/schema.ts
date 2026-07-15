@@ -15,6 +15,7 @@ import {
   index,
   integer,
   jsonb,
+  numeric,
   pgEnum,
   pgTable,
   primaryKey,
@@ -238,15 +239,34 @@ export const jobs = pgTable(
     description: text('description').notNull(),
     eligibility: text('eligibility'),
 
+    // A per-opportunity logo, denormalised from the free-text company entry so the
+    // card can render it without a join and without depending on the company row.
+    companyLogoUrl: text('company_logo_url'),
+
+    // Salary is now expressed in LPA (lakhs per annum) as a From–To range — the
+    // unit every Indian placement message actually uses. The old integer-rupee
+    // columns are kept nullable for the rows created before this change.
     salaryMin: integer('salary_min'),
     salaryMax: integer('salary_max'),
     salaryCurrency: char('salary_currency', { length: 3 }).notNull().default('INR'),
     salaryText: text('salary_text'),
+    salaryFromLpa: numeric('salary_from_lpa', { precision: 4, scale: 1 }),
+    salaryToLpa: numeric('salary_to_lpa', { precision: 4, scale: 1 }),
+    // Free text ("40k/month", "As per norms") — an internship stipend is a
+    // different thing from an annual CTC and gets its own field.
+    internshipStipend: text('internship_stipend'),
 
+    // Default stays 'onsite' (not 'not_mentioned'): changing an enum column
+    // default in the SAME migration that adds the new value trips Postgres'
+    // "unsafe use of new enum value in a transaction" guard. The form always
+    // sends a mode, so this default is only ever a fallback.
     location: text('location'),
     mode: jobModeEnum('mode').notNull().default('onsite'),
     deadline: timestamp('deadline', { withTimezone: true }),
     applicationLink: text('application_link').notNull(),
+    // Extra links a placement message often carries, alongside the apply link.
+    whatsappGroupLink: text('whatsapp_group_link'),
+    collegeRegLink: text('college_reg_link'),
     imageUrl: text('image_url'),
     status: jobStatusEnum('status').notNull().default('draft'),
     isFeatured: boolean('is_featured').notNull().default(false),

@@ -301,25 +301,32 @@ describe('WhatsApp message parser', () => {
 
     const parsed = parseWhatsAppMessage(
       [
-        '*Software Engineer at Google*',
-        'Role: Backend Engineer',
-        'Eligibility: 2026 batch, CGPA 7+',
-        'Package: 24 LPA',
+        '*Backend Developer Intern at Razorpay*',
+        'Eligibility: 2026 & 2027 batch, CGPA 7.5+',
+        'Package: 4.5 - 6 LPA',
+        'Stipend: 40k/month',
         'Location: Bengaluru (Hybrid)',
+        'Skills: React, Node.js, SQL',
         'Last date to apply: 25/12/2026',
         'Apply here 👇',
-        'https://careers.google.com/jobs/123',
+        'https://razorpay.com/jobs/123',
+        'Join the WhatsApp group: https://chat.whatsapp.com/ABC123',
       ].join('\n'),
     );
 
-    expect(parsed.applicationLink).toBe('https://careers.google.com/jobs/123');
+    expect(parsed.applicationLink).toBe('https://razorpay.com/jobs/123');
+    expect(parsed.whatsappGroupLink).toBe('https://chat.whatsapp.com/ABC123');
     expect(parsed.role).toBeTruthy();
-    expect(parsed.companyName).toBeTruthy();
+    expect(parsed.companyName).toBe('Razorpay');
     expect(parsed.eligibility).toContain('2026');
-    expect(parsed.salaryText).toMatch(/24/);
+    // Salary parsed as an LPA range.
+    expect(parsed.salaryFromLpa).toBe(4.5);
+    expect(parsed.salaryToLpa).toBe(6);
+    expect(parsed.internshipStipend).toMatch(/40k/i);
+    expect(parsed.batch).toMatch(/2026/);
+    expect(parsed.skills).toEqual(expect.arrayContaining(['React', 'SQL']));
     expect(parsed.mode).toBe('hybrid');
-    expect(parsed.deadline).not.toBeNull();
-    // Day-first parsing: 25 Dec, not a rolled-over 12 Dut.
+    // Day-first parsing: 25 Dec, not a rolled-over month.
     expect(new Date(parsed.deadline as string).getUTCMonth()).toBe(11);
     expect(parsed.detected).toContain('applicationLink');
   });
@@ -330,7 +337,8 @@ describe('WhatsApp message parser', () => {
 
     expect(parsed.applicationLink).toBeNull();
     expect(parsed.deadline).toBeNull();
-    expect(parsed.salaryText).toBeNull();
+    expect(parsed.salaryFromLpa).toBeNull();
+    expect(parsed.internshipStipend).toBeNull();
     // The description always falls back to the raw text, so nothing is lost.
     expect(parsed.description.length).toBeGreaterThan(0);
   });

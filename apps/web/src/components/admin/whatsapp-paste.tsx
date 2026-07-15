@@ -21,12 +21,16 @@ const FIELD_LABELS: Record<string, string> = {
   companyName: 'Company',
   role: 'Role',
   eligibility: 'Eligibility',
-  salaryText: 'Salary',
+  salary: 'Salary',
+  internshipStipend: 'Stipend',
+  batch: 'Batch',
   location: 'Location',
-  mode: 'Mode',
+  mode: 'Work mode',
   deadline: 'Deadline',
-  applicationLink: 'Link',
-  tags: 'Tags',
+  applicationLink: 'Apply link',
+  whatsappGroupLink: 'WhatsApp link',
+  collegeRegLink: 'College link',
+  skills: 'Skills',
 };
 
 export function WhatsAppPaste({ onParsed }: { onParsed: (parsed: ParsedJob) => void }) {

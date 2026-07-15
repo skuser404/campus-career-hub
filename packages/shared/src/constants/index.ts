@@ -9,7 +9,7 @@
 export const USER_ROLES = ['student', 'admin'] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
-export const JOB_MODES = ['onsite', 'remote', 'hybrid'] as const;
+export const JOB_MODES = ['onsite', 'remote', 'hybrid', 'not_mentioned'] as const;
 export type JobMode = (typeof JOB_MODES)[number];
 
 export const JOB_STATUSES = ['draft', 'published', 'closed', 'archived'] as const;
@@ -147,6 +147,7 @@ export const JOB_MODE_LABELS: Record<JobMode, string> = {
   onsite: 'On-site',
   remote: 'Remote',
   hybrid: 'Hybrid',
+  not_mentioned: 'Not mentioned',
 };
 
 export const JOB_STATUS_LABELS: Record<JobStatus, string> = {
