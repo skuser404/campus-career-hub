@@ -6,20 +6,26 @@ Base URL: `/api/v1`
 
 ## The security model, in one paragraph
 
-This is a **closed system**. There is no public browsing and **no registration
-endpoint** — accounts exist only because an administrator imported them. Every
-opportunity carries a department and year eligibility list, and that list is
-applied **in SQL, in the `WHERE` clause, on every read path**. An ISE student who
-opens a CSE-only posting by its exact URL receives a `404`, not a `403`, because
-confirming that it exists would itself leak that it exists.
+Closed system, Google-gated. There is **no self-service registration endpoint**;
+students arrive through **Google Sign-In**, and any verified `@jainuniversity.ac.in`
+account is auto-created on first login (the domain is the guest list). The admin
+also has a password login as a fallback. Every signed-in student sees every
+**published** opportunity — there is no per-department gating; status (`published`
+vs `draft`) is the only visibility boundary, enforced in SQL on every read path.
 
 Three tiers:
 
 | Tier | Guard | What it can reach |
 |------|-------|-------------------|
-| **Public** | none | `POST /auth/login`, `POST /auth/refresh`, `GET /settings`. That is all. |
-| **Student** | `requireAuth` | Everything scoped to their own department, year and user id. |
-| **Admin** | `requireAuth` + `requireAdmin` | Everything. |
+| **Public** | none | `POST /auth/login`, `POST /auth/google`, `POST /auth/refresh`, `GET /settings`. |
+| **Student** | `requireAuth` | Every published opportunity + their own saved/applied/notifications, scoped to their user id. |
+| **Admin** | `requireAuth` + `requireAdmin` | Everything, including drafts. |
+
+> **Auth history:** earlier revisions used an import roll with USN default
+> passwords and department/year eligibility filtering. Those were superseded by
+> the Google-auto-create + all-visible model. The `job_departments` / `job_years`
+> tables and the admin targeting UI remain in place but no longer gate
+> visibility, so filtering can be restored in a single function if ever needed.
 
 ---
 
@@ -93,7 +99,40 @@ Only `@jainuniversity.ac.in` addresses. Rate limited to 5 failures per 15 minute
 
 A wrong password and an unknown account return the **identical** 401. Login also
 hashes against a dummy when the account is absent, so both cost the same ~250 ms —
-otherwise response latency alone would let an outsider enumerate the student roll.
+otherwise response latency alone would let an outsider enumerate accounts.
+
+### `POST /auth/google`
+
+Students' primary sign-in. Rate limited like `/login`.
+
+```jsonc
+// Request — the ID token from Google's button
+{ "credential": "eyJhbGciOi..." }
+```
+
+The server verifies the token against Google's public keys (signature, audience =
+our Client ID, expiry), requires `email_verified` and the `@jainuniversity.ac.in`
+domain, then **finds or creates** the account and issues the same cookie session as
+password login. Returns 503 if `GOOGLE_CLIENT_ID` is not configured; 403 for a
+non-college or unverified Google account.
+
+### `POST /admin/jobs/parse`
+
+Paste a WhatsApp message, get structured fields back. **Read-only** — extracts and
+returns; creates nothing.
+
+```jsonc
+// Request
+{ "text": "*Backend Intern at Razorpay*\nStipend: 40k\nLast date: 30/11/2026\nhttps://…" }
+
+// 200 — every field optional; `detected` lists what was filled
+{
+  "role": "Backend Intern", "companyName": "Razorpay",
+  "salaryText": "40k", "deadline": "2026-11-30T23:59:00.000Z",
+  "applicationLink": "https://…", "mode": null, "tags": [...],
+  "detected": ["role","companyName","salaryText","deadline","applicationLink"]
+}
+```
 
 ### `POST /auth/first-login`
 

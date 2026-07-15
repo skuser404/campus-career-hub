@@ -76,6 +76,19 @@ schema rejects that outright.
 | `SEED_ADMIN_EMAIL` | `admin@jainuniversity.ac.in` — **must be a college address**, or the admin can never sign in |
 | `SEED_ADMIN_PASSWORD` | something real. The default is rejected in production. |
 | `CLOUDINARY_*` | optional — without it, image upload returns 503 and the admin UI falls back to pasting a URL |
+| `GOOGLE_CLIENT_ID` | optional — the OAuth Client ID (Web application) from Google Cloud Console. Enables student Google Sign-In. Same value as the web app's `NEXT_PUBLIC_GOOGLE_CLIENT_ID`. Unset → Google endpoint returns 503 and the button is hidden. |
+
+### Enabling Google Sign-In
+
+1. Google Cloud Console → **APIs & Services → Credentials → Create OAuth client
+   ID** → **Web application**.
+2. Authorized JavaScript origins: your Vercel URL **and** `http://localhost:3000`.
+3. Copy the Client ID into **both** `GOOGLE_CLIENT_ID` (Render) and
+   `NEXT_PUBLIC_GOOGLE_CLIENT_ID` (Vercel), then redeploy both.
+
+Google Sign-In requires students' `@jainuniversity.ac.in` addresses to be real
+Google (Workspace) accounts. If the university's email is not Google-backed, leave
+this unset and students use the password path instead.
 
 `PORT` is injected by Render. Do not set it.
 
@@ -106,8 +119,9 @@ password.
 
 | Key | Value |
 |-----|-------|
-| `NEXT_PUBLIC_API_URL` | `https://your-api.onrender.com/api/v1` |
+| `NEXT_PUBLIC_API_URL` | `https://your-api.onrender.com/api/v1` (dev only; in production the app proxies `/api/v1` same-origin — see `next.config.ts`) |
 | `NEXT_PUBLIC_APP_NAME` | `Campus Career Hub` |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | optional — same Client ID as the API's `GOOGLE_CLIENT_ID`; shows the "Sign in with Google" button |
 
 Anything behind `NEXT_PUBLIC_` is **visible in the browser bundle**. Never put a
 secret there.
