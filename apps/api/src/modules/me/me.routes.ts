@@ -2,6 +2,7 @@ import {
   applicationQuerySchema,
   createApplicationSchema,
   savedJobQuerySchema,
+  setDepartmentSchema,
   updateApplicationSchema,
   updateOwnProfileSchema,
 } from '@cch/shared';
@@ -47,6 +48,21 @@ meRoutes.patch(
   mutationLimiter,
   validateBody(updateOwnProfileSchema),
   asyncHandler(async (req, res) => ok(res, await service.updateProfile(req.user!.sub, req.body))),
+);
+
+/**
+ * Set your own department — once. Deliberately its own endpoint rather than a
+ * field on the profile update: `updateOwnProfileSchema` must keep refusing
+ * `departmentId`, so a student cannot slip it in via the ordinary profile PATCH
+ * and change branches later.
+ */
+meRoutes.post(
+  '/department',
+  mutationLimiter,
+  validateBody(setDepartmentSchema),
+  asyncHandler(async (req, res) =>
+    ok(res, await service.setOwnDepartment(req.user!.sub, req.body.departmentId)),
+  ),
 );
 
 /** Avatar upload. The folder is hardcoded — a student cannot obtain a signature

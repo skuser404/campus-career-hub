@@ -68,15 +68,42 @@ const searchVector = sql`to_tsvector('english',
  * CSE-only opportunity by its exact slug matches zero rows and receives a 404 —
  * not a 403, because confirming the thing exists would itself leak that it does.
  */
-function eligibilityFilter(_viewer: Viewer | null): SQL | undefined {
-  // Department/year filtering was removed by design decision: every signed-in
-  // student sees every published opportunity, the same for all. The only
-  // visibility rule left is `status = 'published'`, applied by the callers.
-  //
-  // The `job_departments` / `job_years` tables and the admin targeting UI are
-  // kept in place but no longer gate visibility, so restoring filtering later is
-  // a one-function change rather than a schema migration.
-  return undefined;
+function eligibilityFilter(viewer: Viewer | null): SQL | undefined {
+  // An admin sees everything. That is the entire point of being an admin.
+  if (viewer?.role === 'admin') return undefined;
+
+  const deptId = viewer?.departmentId ?? null;
+  const year = viewer?.year ?? null;
+
+  /**
+   * A student with NO department yet (auto-created via Google and not through
+   * the department picker) sees only the opportunities open to everyone. Failing
+   * CLOSED is the only defensible default: the alternative would show every
+   * restricted posting to the one person we know least about.
+   */
+  const departmentOk = deptId
+    ? sql`(
+        NOT EXISTS (SELECT 1 FROM ${jobDepartments} WHERE ${jobDepartments.jobId} = ${jobs.id})
+        OR EXISTS (
+          SELECT 1 FROM ${jobDepartments}
+          WHERE ${jobDepartments.jobId} = ${jobs.id}
+            AND ${jobDepartments.departmentId} = ${deptId}
+        )
+      )`
+    : sql`NOT EXISTS (SELECT 1 FROM ${jobDepartments} WHERE ${jobDepartments.jobId} = ${jobs.id})`;
+
+  const yearOk = year
+    ? sql`(
+        NOT EXISTS (SELECT 1 FROM ${jobYears} WHERE ${jobYears.jobId} = ${jobs.id})
+        OR EXISTS (
+          SELECT 1 FROM ${jobYears}
+          WHERE ${jobYears.jobId} = ${jobs.id}
+            AND ${jobYears.year} = ${year}
+        )
+      )`
+    : sql`NOT EXISTS (SELECT 1 FROM ${jobYears} WHERE ${jobYears.jobId} = ${jobs.id})`;
+
+  return and(departmentOk, yearOk);
 }
 
 /** Columns every job query selects. Declared once so list and detail cannot diverge. */

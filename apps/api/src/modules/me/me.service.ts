@@ -10,9 +10,9 @@ import {
   type UpdateApplicationInput,
   type UpdateOwnProfileInput,
 } from '@cch/shared';
-import { and, asc, count, desc, eq, gte, lte, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, isNull, lte, sql } from 'drizzle-orm';
 import { db } from '../../db/client';
-import { applications, jobs, notifications, savedJobs, users } from '../../db/schema';
+import { applications, departments, jobs, notifications, savedJobs, users } from '../../db/schema';
 import { conflict, notFound } from '../../lib/errors';
 import { buildPaginationMeta, offset } from '../../lib/utils';
 import { findById, toPublicUser } from '../auth/auth.service';
@@ -56,6 +56,44 @@ export async function updateProfile(
     .returning({ id: users.id });
 
   if (updated.length === 0) throw notFound('Account');
+
+  const row = await findById(userId);
+  return toPublicUser(row!);
+}
+
+/**
+ * Set the student's own department — ONCE.
+ *
+ * Google gives us no branch, so the student picks it on first sign-in. The
+ * set-once rule is the whole point: without it a student could flip departments
+ * at will to browse another branch's postings, and the filter would mean nothing.
+ * After this, only an admin can change it.
+ */
+export async function setOwnDepartment(userId: string, departmentId: string): Promise<PublicUser> {
+  const current = await findById(userId);
+  if (!current) throw notFound('Account');
+
+  if (current.departmentId) {
+    throw conflict(
+      'Your department is already set. Contact the placement office if it needs changing.',
+    );
+  }
+
+  const [dept] = await db
+    .select({ id: departments.id })
+    .from(departments)
+    .where(eq(departments.id, departmentId))
+    .limit(1);
+  if (!dept) throw notFound('Department');
+
+  await db
+    .update(users)
+    .set({ departmentId, updatedAt: new Date() })
+    .where(
+      // The null check is repeated in the WHERE, not just the read above: two
+      // simultaneous requests would both pass the read, and only one may win.
+      and(eq(users.id, userId), isNull(users.departmentId)),
+    );
 
   const row = await findById(userId);
   return toPublicUser(row!);

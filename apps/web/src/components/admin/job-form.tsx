@@ -1,17 +1,19 @@
 'use client';
 
 import {
+  ACADEMIC_YEARS,
   JOB_MODES,
   JOB_MODE_LABELS,
   JOB_STATUSES,
   JOB_STATUS_LABELS,
+  YEAR_LABELS,
   jobInputSchema,
   type Job,
   type JobInput,
   type ParsedJob,
 } from '@cch/shared';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ImageIcon, Loader2, Upload, X } from 'lucide-react';
+import { ImageIcon, Loader2, Upload, Users, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import * as React from 'react';
 import { Controller, useForm } from 'react-hook-form';
@@ -28,7 +30,18 @@ import {
   SelectValue,
   Switch,
 } from '@/components/ui/primitives';
-import { useCreateJob, useUpdateJob, useUploadImage } from '@/hooks/use-admin';
+import { useAdminDepartments, useCreateJob, useUpdateJob, useUploadImage } from '@/hooks/use-admin';
+import { cn } from '@/lib/utils';
+
+/** Selectable chip — shared by the department and year pickers. */
+const chipClass = (active: boolean) =>
+  cn(
+    'rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+    active
+      ? 'border-primary bg-primary text-primary-foreground'
+      : 'border-border bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground',
+  );
 
 interface JobFormProps {
   job?: Job;
@@ -62,6 +75,7 @@ export function JobForm({ job, prefill }: JobFormProps) {
   const create = useCreateJob();
   const update = useUpdateJob();
   const upload = useUploadImage();
+  const { data: departments } = useAdminDepartments();
 
   const [skillInput, setSkillInput] = React.useState('');
 
@@ -108,7 +122,29 @@ export function JobForm({ job, prefill }: JobFormProps) {
   });
 
   const skills = watch('skills') ?? [];
+  const selectedDeptIds = watch('departmentIds') ?? [];
+  const selectedYears = watch('years') ?? [];
   const imageUrl = watch('imageUrl');
+
+  const toggleDept = (id: string) => {
+    setValue(
+      'departmentIds',
+      selectedDeptIds.includes(id)
+        ? selectedDeptIds.filter((d) => d !== id)
+        : [...selectedDeptIds, id],
+      { shouldDirty: true },
+    );
+  };
+
+  const toggleYear = (year: number) => {
+    setValue(
+      'years',
+      selectedYears.includes(year)
+        ? selectedYears.filter((y) => y !== year)
+        : [...selectedYears, year].sort((a, b) => a - b),
+      { shouldDirty: true },
+    );
+  };
 
   /**
    * Seed the form from a parsed WhatsApp message. Only fields the parser found
@@ -335,6 +371,98 @@ export function JobForm({ job, prefill }: JobFormProps) {
 
       {/* ── Sidebar ──────────────────────────────────────────────────────── */}
       <div className="space-y-6">
+        {/*
+          ═══════════════════════════════════════════════════════════════
+          WHO CAN SEE THIS — the most consequential control on the page.
+          ═══════════════════════════════════════════════════════════════
+
+          Not tags. The API's job queries exclude students of other departments
+          in SQL, so an ISE student cannot open a CSE-only posting even with its
+          direct URL.
+
+          "ALL" is not a department row — it means an EMPTY list, which is the
+          schema's "open to everyone" default. Selecting a specific department
+          clears ALL, and clearing every department goes back to ALL. That is
+          why the UI says it in words: a checkbox list where "nothing ticked"
+          means "everyone" is the kind of thing that gets read backwards.
+        */}
+        <Card className="border-primary/30">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Users className="h-4 w-4 text-primary" />
+              Who can see this
+            </CardTitle>
+          </CardHeader>
+
+          <CardContent className="space-y-5">
+            <div className="space-y-2">
+              <Label>Departments</Label>
+
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setValue('departmentIds', [], { shouldDirty: true })}
+                  aria-pressed={selectedDeptIds.length === 0}
+                  className={chipClass(selectedDeptIds.length === 0)}
+                >
+                  ALL
+                </button>
+
+                {departments?.map((dept) => (
+                  <button
+                    key={dept.id}
+                    type="button"
+                    onClick={() => toggleDept(dept.id)}
+                    aria-pressed={selectedDeptIds.includes(dept.id)}
+                    className={chipClass(selectedDeptIds.includes(dept.id))}
+                  >
+                    {dept.code}
+                  </button>
+                ))}
+              </div>
+
+              <p
+                className={
+                  selectedDeptIds.length === 0
+                    ? 'text-xs font-medium text-primary'
+                    : 'text-xs text-muted-foreground'
+                }
+              >
+                {selectedDeptIds.length === 0
+                  ? 'ALL — every department can see this.'
+                  : `Only ${selectedDeptIds.length} department${selectedDeptIds.length === 1 ? '' : 's'} can see this.`}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Year</Label>
+
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setValue('years', [], { shouldDirty: true })}
+                  aria-pressed={selectedYears.length === 0}
+                  className={chipClass(selectedYears.length === 0)}
+                >
+                  Any year
+                </button>
+
+                {ACADEMIC_YEARS.map((year) => (
+                  <button
+                    key={year}
+                    type="button"
+                    onClick={() => toggleYear(year)}
+                    aria-pressed={selectedYears.includes(year)}
+                    className={chipClass(selectedYears.includes(year))}
+                  >
+                    {YEAR_LABELS[year]}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Publishing</CardTitle>

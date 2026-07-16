@@ -196,6 +196,22 @@ export const IMPORT_TEMPLATE_HEADERS = [
   'Batch',
 ] as const;
 
+/**
+ * A student choosing their own department — ONCE.
+ *
+ * Google tells us a name and an email and nothing about which branch someone is
+ * in, so the student tells us. After it is set, only an admin can change it,
+ * which stops casual department-hopping to peek at another branch's postings.
+ *
+ * Be clear-eyed about the limit: a student can still pick the wrong department
+ * the first time. This makes the feed relevant; it is NOT a security boundary,
+ * and nothing that must not leak across branches should rely on it.
+ */
+export const setDepartmentSchema = z.object({
+  departmentId: uuidSchema,
+});
+export type SetDepartmentInput = z.infer<typeof setDepartmentSchema>;
+
 // ─────────────────────────────────────────────────────────────────────────
 // Admin actions on a student
 // ─────────────────────────────────────────────────────────────────────────

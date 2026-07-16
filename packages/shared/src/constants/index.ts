@@ -68,26 +68,44 @@ export const COLLEGE_EMAIL_DOMAIN = 'jainuniversity.ac.in';
 export const isCollegeEmail = (email: string): boolean =>
   email.trim().toLowerCase().endsWith(`@${COLLEGE_EMAIL_DOMAIN}`);
 
-/** Seeded departments. Admins may add more at runtime. */
+/**
+ * Seeded departments. Admins add/edit/remove more at runtime — this list is only
+ * the starting set.
+ */
 export const DEFAULT_DEPARTMENTS = [
   { code: 'CSE', name: 'Computer Science & Engineering' },
   { code: 'ISE', name: 'Information Science & Engineering' },
   { code: 'AIML', name: 'Artificial Intelligence & Machine Learning' },
   { code: 'CTIS', name: 'Computer Technology & Information Security' },
   { code: 'ECE', name: 'Electronics & Communication Engineering' },
-  { code: 'MBA', name: 'Master of Business Administration' },
 ] as const;
 
-/** Academic years. A postgraduate MBA runs 1–2; engineering runs 1–4. */
-export const ACADEMIC_YEARS = [1, 2, 3, 4] as const;
+/**
+ * Academic years.
+ *
+ * Placements run for final year only, so 4 is the only value. An opportunity
+ * that targets no year is open to everyone regardless — which is the default and
+ * the common case.
+ */
+export const ACADEMIC_YEARS = [4] as const;
 export type AcademicYear = (typeof ACADEMIC_YEARS)[number];
 
 export const YEAR_LABELS: Record<number, string> = {
   1: '1st Year',
   2: '2nd Year',
   3: '3rd Year',
-  4: '4th Year',
+  4: 'Fourth Year',
 };
+
+/**
+ * The sentinel the admin UI uses for "every department".
+ *
+ * It is NOT a department row. Selecting it means an EMPTY `departmentIds` list,
+ * which is already the schema's "open to everyone" semantic — so ALL and
+ * "nothing ticked" are the same thing, and there is no phantom department to
+ * keep in sync.
+ */
+export const ALL_DEPARTMENTS = '__all__';
 
 /**
  * USN — University Seat Number. The student's real identity.

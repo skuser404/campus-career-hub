@@ -150,6 +150,31 @@ export function useLogout() {
   });
 }
 
+/**
+ * A student setting their own department — once. Seeds the cache with the
+ * returned user so the gate closes immediately, without a refetch flicker.
+ */
+export function useSetDepartment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (departmentId: string) =>
+      api.post<PublicUser>('/me/department', { departmentId }),
+
+    onSuccess(user) {
+      queryClient.setQueryData(authKeys.me, user);
+      // Everything a student sees is department-filtered, so the whole cache is
+      // now stale — not just the profile.
+      void queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      toast.success(`Set to ${user.department?.code ?? 'your department'}`);
+    },
+
+    onError(error) {
+      toast.error(error instanceof ApiError ? error.message : 'Could not set your department');
+    },
+  });
+}
+
 export function useUpdateProfile() {
   const queryClient = useQueryClient();
 

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { DepartmentGate } from '@/components/auth/department-gate';
 import { Navbar } from '@/components/layout/navbar';
 
 /**
@@ -11,6 +12,10 @@ import { Navbar } from '@/components/layout/navbar';
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col">
+      {/* Blocks a student with no department yet — they would otherwise see an
+          almost-empty site and think it was broken. */}
+      <DepartmentGate />
+
       <Navbar />
 
       <main id="main" className="flex-1">

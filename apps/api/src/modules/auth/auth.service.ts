@@ -291,6 +291,10 @@ export async function loginWithGoogle(
       fullName: identity.name ?? identity.email.split('@')[0] ?? 'Student',
       role: shouldBeAdmin ? 'admin' : 'student',
       avatarUrl: identity.picture ?? null,
+      // Placements run for final year only, so 4 is the only year there is.
+      // Department is left null on purpose — Google does not tell us the branch,
+      // so the student picks it once on first sign-in.
+      year: shouldBeAdmin ? null : 4,
       mustChangePassword: false,
       lastLoginAt: new Date(),
     })
