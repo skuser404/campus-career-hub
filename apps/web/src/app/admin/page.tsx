@@ -80,6 +80,7 @@ export default function AdminOverviewPage() {
               sub="awaiting review"
               icon={Inbox}
               urgent={(data?.pendingReportsCount ?? 0) > 0}
+              href="/admin/reports"
             />
             <Stat label="Students" value={t?.totalStudents ?? 0} sub={`${t?.totalUsers ?? 0} users`} icon={Users} href="/admin/students" />
             <Stat label="Companies" value={t?.totalCompanies ?? 0} icon={Building2} href="/admin/companies" />

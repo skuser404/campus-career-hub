@@ -36,8 +36,19 @@ export const NOTIFICATION_TYPES = [
   'announcement',
   'application_update',
   'account',
+  'report_update',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
+
+/** A student's "missing opportunity" report moves through these states. */
+export const REPORT_STATUSES = ['pending', 'published', 'dismissed'] as const;
+export type ReportStatus = (typeof REPORT_STATUSES)[number];
+
+export const REPORT_STATUS_LABELS: Record<ReportStatus, string> = {
+  pending: 'Pending review',
+  published: 'Published',
+  dismissed: 'Dismissed',
+};
 
 // ─────────────────────────────────────────────────────────────────────────
 // Institution
@@ -170,6 +181,7 @@ export const NOTIFICATION_LABELS: Record<NotificationType, string> = {
   announcement: 'Announcement',
   application_update: 'Application update',
   account: 'Account',
+  report_update: 'Report update',
 };
 
 /** Machine-readable error codes. The web app switches on these, never on message text. */

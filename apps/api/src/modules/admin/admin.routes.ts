@@ -8,6 +8,7 @@ import { validateBody, validateQuery } from '../../middleware/validate';
 import * as analytics from '../analytics/analytics.service';
 import { adminAnnouncementRoutes, adminBannerRoutes } from '../content/content.routes';
 import { adminJobRoutes } from '../jobs/jobs.routes';
+import { adminReportRoutes } from '../reports/reports.routes';
 import * as settings from '../settings/settings.service';
 import { adminDepartmentRoutes, adminStudentRoutes } from '../students/students.routes';
 import {
@@ -38,6 +39,7 @@ adminRoutes.use('/categories', adminCategoryRoutes);
 adminRoutes.use('/tags', adminTagRoutes);
 adminRoutes.use('/announcements', adminAnnouncementRoutes);
 adminRoutes.use('/banners', adminBannerRoutes);
+adminRoutes.use('/reports', adminReportRoutes);
 
 // ── Analytics ────────────────────────────────────────────────────────────
 

@@ -13,6 +13,7 @@ import { requireAuth } from '../../middleware/auth';
 import { mutationLimiter } from '../../middleware/security';
 import { validateBody, validateParams, validateQuery } from '../../middleware/validate';
 import * as authService from '../auth/auth.service';
+import { meReportRoutes } from '../reports/reports.routes';
 import * as uploads from '../uploads/uploads.service';
 import * as service from './me.service';
 
@@ -30,6 +31,9 @@ export const meRoutes: Router = Router();
  * privilege escalation impossible rather than merely unlikely.
  */
 meRoutes.use(requireAuth);
+
+// Report a missing opportunity → POST /me/reports
+meRoutes.use('/reports', meReportRoutes);
 
 // ── Profile ──────────────────────────────────────────────────────────────
 

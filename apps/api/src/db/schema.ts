@@ -5,6 +5,7 @@ import {
   JOB_MODES,
   JOB_STATUSES,
   NOTIFICATION_TYPES,
+  REPORT_STATUSES,
   USER_ROLES,
 } from '@cch/shared';
 import { relations, sql } from 'drizzle-orm';
@@ -36,6 +37,7 @@ export const jobStatusEnum = pgEnum('job_status', JOB_STATUSES);
 export const applicationStatusEnum = pgEnum('application_status', APPLICATION_STATUSES);
 export const announcementPriorityEnum = pgEnum('announcement_priority', ANNOUNCEMENT_PRIORITIES);
 export const notificationTypeEnum = pgEnum('notification_type', NOTIFICATION_TYPES);
+export const reportStatusEnum = pgEnum('report_status', REPORT_STATUSES);
 
 const timestamps = {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -448,6 +450,37 @@ export const notifications = pgTable(
     index('notifications_unread_idx')
       .on(t.userId)
       .where(sql`${t.isRead} = false`),
+  ],
+);
+
+// ─────────────────────────────────────────────────────────────────────────
+// opportunity_reports — a student reports a placement message missing from here
+// ─────────────────────────────────────────────────────────────────────────
+
+export const opportunityReports = pgTable(
+  'opportunity_reports',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    // `set null`: a report is evidence of a gap and survives the reporter's
+    // account being removed — the admin may still want to act on the message.
+    reporterId: uuid('reporter_id').references(() => users.id, { onDelete: 'set null' }),
+    departmentId: uuid('department_id').references(() => departments.id, { onDelete: 'set null' }),
+    companyName: text('company_name'),
+    // The pasted WhatsApp message — the whole point of the report.
+    message: text('message').notNull(),
+    status: reportStatusEnum('status').notNull().default('pending'),
+    reviewedBy: uuid('reviewed_by').references(() => users.id, { onDelete: 'set null' }),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    // The admin queue: pending first, newest first. A partial index keeps the hot
+    // "what needs review" query small.
+    index('opportunity_reports_status_idx').on(t.status, t.createdAt.desc()),
+    index('opportunity_reports_pending_idx')
+      .on(t.createdAt.desc())
+      .where(sql`${t.status} = 'pending'`),
+    index('opportunity_reports_reporter_idx').on(t.reporterId),
   ],
 );
 

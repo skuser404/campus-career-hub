@@ -14,6 +14,7 @@ export * from './schemas/taxonomy';
 export * from './schemas/job';
 export * from './schemas/application';
 export * from './schemas/notification';
+export * from './schemas/report';
 export * from './schemas/content';
 export * from './schemas/settings';
 export * from './schemas/analytics';

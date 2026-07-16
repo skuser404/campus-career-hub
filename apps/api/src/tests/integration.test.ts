@@ -678,6 +678,47 @@ describe('cross-origin defence', () => {
   });
 });
 
+/**
+ * Report a missing opportunity: student submits → admin queue → admin reviews.
+ */
+describe('opportunity reports', () => {
+  it('lets a student submit a report and the admin review it', async () => {
+    const submit = await request(app)
+      .post('/api/v1/me/reports')
+      .set('Cookie', cse4.cookie)
+      .send({ companyName: 'Reported Co', message: 'Placement drive for CSE, apply by Friday.' });
+    expect(submit.status).toBe(201);
+    const reportId = submit.body.data.id as string;
+
+    // It lands in the admin's pending queue…
+    const queue = await request(app)
+      .get('/api/v1/admin/reports?status=pending&limit=100')
+      .set('Cookie', adminCookie);
+    expect(queue.status).toBe(200);
+    expect((queue.body.data as Array<{ id: string }>).some((r) => r.id === reportId)).toBe(true);
+
+    // …a student cannot read the admin queue…
+    const forbidden = await request(app).get('/api/v1/admin/reports').set('Cookie', cse4.cookie);
+    expect(forbidden.status).toBe(403);
+
+    // …and the admin can resolve it.
+    const review = await request(app)
+      .patch(`/api/v1/admin/reports/${reportId}`)
+      .set('Cookie', adminCookie)
+      .send({ status: 'dismissed' });
+    expect(review.status).toBe(200);
+    expect(review.body.data.status).toBe('dismissed');
+  });
+
+  it('rejects a report that is too short to act on', async () => {
+    const res = await request(app)
+      .post('/api/v1/me/reports')
+      .set('Cookie', cse4.cookie)
+      .send({ message: 'missing' });
+    expect(res.status).toBe(400);
+  });
+});
+
 describe('health', () => {
   it('reports the database as up', async () => {
     const res = await request(app).get('/health');

@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { JobCardCompact } from '@/components/jobs/job-card';
+import { ReportDialog } from '@/components/reports/report-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -135,16 +136,36 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* ── Announcements ─────────────────────────────────────────────── */}
+        {/* ── Notice Board ──────────────────────────────────────────────── */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Megaphone className="h-4 w-4 text-primary" />
-              Announcements
+              Notice Board
             </CardTitle>
           </CardHeader>
 
-          <CardContent>
+          <CardContent className="space-y-4">
+            {/* The fixed notice — the channel for students to surface a placement
+                message that has not made it onto the site yet. */}
+            <div className="rounded-lg border border-primary/25 bg-primary/5 p-3">
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Did your department get a placement opportunity that isn&rsquo;t here yet? Send us the
+                official WhatsApp message and we&rsquo;ll publish it for everyone.
+              </p>
+              <div className="mt-2.5">
+                <ReportDialog
+                  trigger={
+                    <Button size="sm">
+                      <Megaphone className="h-4 w-4" />
+                      Report Missing Opportunity
+                    </Button>
+                  }
+                />
+              </div>
+            </div>
+
+            {/* Announcements, most recent first (the API orders by priority then date). */}
             {announcements && announcements.length > 0 ? (
               <ul className="space-y-4">
                 {announcements.slice(0, 4).map((a) => (
@@ -165,11 +186,7 @@ export default function DashboardPage() {
                   </li>
                 ))}
               </ul>
-            ) : (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                Nothing new right now.
-              </p>
-            )}
+            ) : null}
           </CardContent>
         </Card>
       </div>

@@ -9,6 +9,7 @@ import {
   Cog,
   GraduationCap,
   Image as ImageIcon,
+  Inbox,
   LayoutDashboard,
   Megaphone,
   Tags,
@@ -26,6 +27,7 @@ import { cn, initials } from '@/lib/utils';
 const NAV = [
   { href: '/admin', label: 'Overview', icon: LayoutDashboard, exact: true },
   { href: '/admin/jobs', label: 'Opportunities', icon: Briefcase },
+  { href: '/admin/reports', label: 'Reports', icon: Inbox },
   { href: '/admin/students', label: 'Students', icon: Users },
   { href: '/admin/departments', label: 'Departments', icon: GraduationCap },
   { href: '/admin/companies', label: 'Companies', icon: Building2 },
